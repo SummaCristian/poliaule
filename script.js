@@ -19,8 +19,7 @@ import {
   SKIP_DAYS
 } from './available-rooms-script.js';
 
-import { initSearchTab, navigateToBuilding, classroomsData as staticClassroomsData } from './search-classrooms-script.js';
-import { activateGroupTab } from './components/bottom-nav.js';
+import { ensureClassroomDirectory, classroomsData as staticClassroomsData } from './classroom-search-data.js';
 import { initSearchOverlay } from './components/search-overlay.js';
 import { classroomDetail } from './components/classroom-detail.js';
 import { infoPage } from './components/info-page.js';
@@ -216,9 +215,6 @@ function buildBuildingSection(building, rooms, from, to, cardIndex = 0, isToday 
       <span class="building-name">${t('building.prefix')} ${escapeHtml(buildingName)}</span>
       ${building.altName ? `<span class="building-alt-name">${escapeHtml(building.altName)}</span>` : ''}
     </button>
-    <button class="header-button building-section-btn liquid-glass" type="button" aria-label="${escapeHtml(t('building.prefix'))} ${escapeHtml(buildingName)}">
-      <i class="hgi-stroke hgi-arrow-right-01" aria-hidden="true"></i>
-    </button>
   `;
   cardIndex++;
   section.appendChild(headerEl);
@@ -253,29 +249,6 @@ function buildBuildingSection(building, rooms, from, to, cardIndex = 0, isToday 
   });
   // Fallback for keyboard / assistive-tech activation, which fires click only.
   titlesBtn.addEventListener('click', openOverview);
-
-  // Jump to this building's page in the Campus tab. The tab has to be made
-  // visible *before* renderClassrooms runs — building the grid while the tab
-  // is still content-visibility:hidden makes every card first lay out at a
-  // zero-width container, and content-visibility:auto then caches that wrong
-  // intrinsic size (cards balloon after the next view transition).
-  headerEl.querySelector('.building-section-btn').addEventListener('click', () => {
-    const campus = staticClassroomsData?.find(c => c.id === campusId);
-    const target = campus?.buildings.find(b =>
-      (building.id != null && b.id === building.id) || b.name === building.name);
-    if (!campus || !target) return;
-
-    haptics.trigger(defaultPatterns.light);
-
-    const campusTab = document.getElementById('search-classrooms-container');
-    const go = () => navigateToBuilding(campusId, building.id ?? null, building.name);
-    if (campusTab.classList.contains('visible')) {
-      go();
-    } else {
-      campusTab.addEventListener('tabvisible', go, { once: true });
-    }
-    activateGroupTab('search-classrooms-container');
-  });
 
   rooms.forEach(room => {
     const roomItem = document.createElement('div');
@@ -319,10 +292,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     initSearchOverlay();
 
     // Only the static classroom directory blocks the splash — it's what the
-    // page shell (campus picker, search tab, classroom detail) is built from.
+    // page shell (campus picker, classroom detail, favourites) is built from.
     // Occupancy data is fetched separately in the background (see
     // initOccupancyData below) and fills in its own skeleton once ready.
-    await initSearchTab();
+    await ensureClassroomDirectory();
 
     // Init classroom detail overlay (hash routing + VT morph)
     classroomDetail.init(staticClassroomsData);
