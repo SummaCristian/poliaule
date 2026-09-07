@@ -27,6 +27,7 @@ import { infoPage } from './components/info-page.js';
 import { initTimePickers } from './components/time-picker.js';
 import { initTimeRangeSlider } from './components/time-range-slider.js';
 import { setupCampusPicker } from './components/campus-picker.js';
+import { initCampusMap } from './components/campus-map.js';
 import { setupDatePicker } from './components/date-picker.js';
 import './components/date-chip-picker.js';
 import './components/time-range-chip-picker.js';
@@ -305,6 +306,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Favourites carousel on the Available page
     initFavourites(staticClassroomsData);
+
+    // Campus tab — fullscreen map, lazily initialised on first activation
+    initCampusMap();
 
     // Setup the campus picker with the available ones
     setupCampusPicker(staticClassroomsData);

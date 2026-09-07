@@ -38,6 +38,7 @@
   <link rel="stylesheet" href="./components/classroom-detail.css" />
   <link rel="stylesheet" href="./components/info-page.css" />
   <link rel="stylesheet" href="./components/bottom-nav.css" />
+  <link rel="stylesheet" href="./components/campus-map.css" />
   <link rel="stylesheet" href="./components/favourites.css" />
   <link rel="stylesheet" href="./components/liquid-glass.css" />
   <link rel="stylesheet" href="./components/keybindings.css" />
@@ -217,8 +218,9 @@
 
     </div>
 
-    <!-- Campus (new UI — TBD). Kept as an empty tab panel so the bottom-nav
-         Available/Campus pill still has a target; content to be rebuilt. -->
+    <!-- Campus — fullscreen Mapbox map. Filled lazily by components/campus-map.js
+         on first activation; campus-map.css turns this panel into a fixed,
+         edge-to-edge layer behind the header / footer / nav. -->
     <div id="search-classrooms-container" class="tab-content"></div>
 
     <!-- Classroom Detail Panel (sibling to tab-content divs, shown in-place) -->

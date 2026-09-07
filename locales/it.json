@@ -66,6 +66,7 @@
   "datepicker.label": "Data",
   "campus.milanLabel": "Milano",
   "campus.otherLabel": "Altre città",
+  "campus.mapError": "Impossibile caricare la mappa.",
   "features.videoProjector": "Proiettore",
   "features.radioMic": "Microfono ambientale",
   "features.dimmable": "Oscurabile",
