@@ -1,0 +1,177 @@
+/* ============================================================
+   CAMPUS TAB — FULLSCREEN MAP
+   A Mapbox map fills the whole viewport; the app chrome (header,
+   footer, bottom-nav) floats above it. The page scroll is locked
+   while this tab is open so every drag / pinch / rotate reaches
+   the map instead of scrolling the page behind it.
+   ============================================================ */
+
+/* Scroll lock — only while the Campus tab is the visible one. */
+html:has(#search-classrooms-container.visible),
+html:has(#search-classrooms-container.visible) body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* The map panel: edge to edge, behind the chrome. `position: fixed` gives it
+   the whole viewport and its own z-index:0 stacking context. */
+#search-classrooms-container.visible {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+
+  display: block;
+  padding: 0;
+  margin: 0;
+
+  /* The shared .tab-content intro animates transform + filter; that would
+     churn the GL canvas, so use a plain fade here instead. */
+  animation: campus-map-fade-in 0.3s ease both;
+}
+
+@keyframes campus-map-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #search-classrooms-container.visible { animation: none; }
+}
+
+/* Keep the chrome painted above the fixed map. Header (z 1000) and bottom-nav
+   (z 20) already clear it; the footer is statically positioned, so lift it. */
+html:has(#search-classrooms-container.visible) .footer {
+  position: relative;
+  z-index: 5;
+}
+
+.campus-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.campus-map:focus,
+.campus-map canvas:focus {
+  outline: none;
+}
+
+/* --- Mapbox control placement: clear the floating header / footer / nav --- */
+.campus-map .mapboxgl-ctrl-top-right {
+  top: calc(env(safe-area-inset-top) + var(--header-height, 84px) + 0.5rem);
+  right: 0.75rem;
+}
+
+.campus-map .mapboxgl-ctrl-bottom-left,
+.campus-map .mapboxgl-ctrl-bottom-right {
+  bottom: calc(var(--bottom-nav-height, 88px) + 20px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 600px) {
+  /* Bottom-nav is a top-left rail here, so only the header still overlaps. */
+  .campus-map .mapboxgl-ctrl-bottom-left,
+  .campus-map .mapboxgl-ctrl-bottom-right {
+    bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+}
+
+/* --- Markers --------------------------------------------------------------- */
+.campus-marker {
+  --marker-accent: var(--text-color-accent);
+
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+
+  margin: 0;
+  padding: 0.4rem 0.7rem 0.4rem 0.55rem;
+  border: none;
+  border-radius: var(--radius-pill, 999px);
+
+  font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 700;
+  font-size: var(--text-87, 0.875rem);
+  line-height: 1;
+  color: var(--text-color-primary);
+  white-space: nowrap;
+
+  background: var(--glass-tint, rgba(250, 250, 250, 0.7));
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline, rgba(0, 0, 0, 0.25)),
+    0 4px 16px var(--glass-shadow-color, rgba(0, 0, 0, 0.18));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  cursor: pointer;
+  will-change: transform;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.campus-marker:active { transform: scale(0.94); }
+
+@media (hover: hover) {
+  .campus-marker:hover { transform: scale(1.04); }
+}
+
+.campus-marker__dot {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--marker-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--marker-accent) 25%, transparent);
+}
+
+.campus-marker--building {
+  padding: 0.3rem 0.6rem;
+  font-weight: 600;
+  font-size: var(--text-75, 0.8125rem);
+  color: var(--text-color-secondary);
+}
+
+.campus-marker--building .campus-marker__dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  background: var(--text-color-secondary);
+  box-shadow: none;
+}
+
+/* --- Popup: match the app's card language -------------------------------- */
+.campus-map .mapboxgl-popup-content {
+  padding: 0.7rem 0.9rem;
+  border-radius: 14px;
+  font-family: "Nunito", -apple-system, sans-serif;
+  color: var(--text-color-primary);
+  background: var(--background-color-secondary, #fff);
+  box-shadow: 0 8px 30px var(--glass-shadow-color, rgba(0, 0, 0, 0.2));
+}
+
+.campus-map .mapboxgl-popup-tip,
+.campus-map .mapboxgl-popup-close-button {
+  display: none;
+}
+
+.campus-popup__title {
+  font-weight: 800;
+  font-size: var(--text-100, 1rem);
+}
+
+.campus-popup__addr {
+  margin-top: 0.15rem;
+  font-size: var(--text-75, 0.8125rem);
+  color: var(--text-color-secondary);
+}
+
+/* --- Error state -------------------------------------------------------- */
+.campus-map-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  font-weight: 600;
+  color: var(--text-color-secondary);
+}

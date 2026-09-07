@@ -82,6 +82,14 @@ GET /v1/photos/:id
 
 Returns the classroom's photo as a JPEG image. `:id` is the classroom's stable `id` from `/v1/classrooms` (not PoliMi's internal `idfoto`). Only classrooms with a non-null `idfoto` have a photo; requesting any other id returns 404. Photos are re-fetched from PoliMi once a month, so responses are cacheable for a long time (`Cache-Control: public, max-age=2592000, immutable`).
 
+### Frontend config
+
+```
+GET /v1/config
+```
+
+Returns `{ "mapboxToken": string }` — the URL-restricted Mapbox public token the Campus tab map uses, kept in a worker secret rather than the (public) source repo. `503` with `mapboxToken: null` if the secret is unset. `Cache-Control: public, max-age=3600`.
+
 ---
 
 ## Response schemas

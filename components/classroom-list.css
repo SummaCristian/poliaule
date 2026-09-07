@@ -218,15 +218,6 @@
   pointer-events: none;
 }
 
-.building-section-btn {
-  flex: none;
-}
-
-.building-section-btn i {
-  font-size: 1.25rem;
-  line-height: 1;
-}
-
 .building-name {
   font-size: var(--text-110);
   font-weight: 700;

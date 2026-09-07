@@ -76,6 +76,7 @@
 
   "campus.milanLabel": "Milano",
   "campus.otherLabel": "Other cities",
+  "campus.mapError": "Couldn't load the map.",
 
   "features.videoProjector": "Video projector",
   "features.radioMic": "Radio microphone",

@@ -34,11 +34,11 @@
   <link rel="stylesheet" href="./components/classroom-list.css" />
   <link rel="stylesheet" href="./components/building-overview.css" />
   <link rel="stylesheet" href="./components/settings.css" />
-  <link rel="stylesheet" href="./components/search-classrooms.css" />
   <link rel="stylesheet" href="./components/search-overlay.css" />
   <link rel="stylesheet" href="./components/classroom-detail.css" />
   <link rel="stylesheet" href="./components/info-page.css" />
   <link rel="stylesheet" href="./components/bottom-nav.css" />
+  <link rel="stylesheet" href="./components/campus-map.css" />
   <link rel="stylesheet" href="./components/favourites.css" />
   <link rel="stylesheet" href="./components/liquid-glass.css" />
   <link rel="stylesheet" href="./components/keybindings.css" />
@@ -218,26 +218,10 @@
 
     </div>
 
-    <!-- Search Classroom -->
-    <div id="search-classrooms-container" class="tab-content">
-      <div class="section-header">
-        <h3 class="section-header-title" data-i18n="search.title">Search Classroom</h3>
-        <p class="section-header-subtitle secondary" data-i18n="search.subtitle">
-          Look up any classroom to see its availability throughout the day, or check
-          when it will be available next.
-        </p>
-      </div>
-
-      <!-- Results box: breadcrumb + card grid -->
-      <div class="search-results-box">
-        <nav id="search-breadcrumb" class="search-breadcrumb hidden" aria-label="breadcrumb">
-          <div class="search-breadcrumb-inner"></div>
-        </nav>
-        <div id="search-level-header" class="search-level-header"></div>
-        <div id="search-results-container"></div>
-      </div>
-
-    </div>
+    <!-- Campus — fullscreen Mapbox map. Filled lazily by components/campus-map.js
+         on first activation; campus-map.css turns this panel into a fixed,
+         edge-to-edge layer behind the header / footer / nav. -->
+    <div id="search-classrooms-container" class="tab-content"></div>
 
     <!-- Classroom Detail Panel (sibling to tab-content divs, shown in-place) -->
     <div id="classroom-detail-overlay" hidden></div>

@@ -106,6 +106,92 @@ html.search-vt .bn-search-btn {
   flex-shrink: 0;
 }
 
+/* ── Search bar ────────────────────────────────────────────────────── */
+
+.search-bar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  background-color: var(--background-color-secondary);
+  border-radius: var(--radius-pill);
+  padding: 0.75rem 1.25rem;
+  box-shadow: var(--shadow);
+  border: 1px solid color-mix(in srgb, var(--text-color-primary) 6%, transparent);
+
+  box-sizing: border-box;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.search-bar-wrapper .material-symbols-outlined {
+  color: color-mix(in srgb, var(--text-color-primary) 40%, transparent);
+  font-size: var(--text-125) !important;
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: "Nunito", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: var(--text-100);
+  font-weight: 500;
+  color: var(--text-color-primary);
+}
+
+.search-input::placeholder {
+  color: color-mix(in srgb, var(--text-color-primary) 35%, transparent);
+}
+
+.search-clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  background: color-mix(in srgb, var(--text-color-primary) 10%, transparent);
+  border: none;
+  border-radius: 50%;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  color: color-mix(in srgb, var(--text-color-primary) 55%, transparent);
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.search-clear-btn:hover {
+  background: color-mix(in srgb, var(--text-color-primary) 16%, transparent);
+}
+
+.search-clear-btn .material-symbols-outlined {
+  font-size: var(--text-100) !important;
+}
+
+/* Show only when the input has content (placeholder is hidden) */
+.search-input:not(:placeholder-shown) ~ .search-clear-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Match highlight in result cards (utils/html.js highlight() emits <mark>). */
+.search-overlay-results mark {
+  background: rgba(255, 194, 0, 0.45);
+  color: inherit;
+  border-radius: 3px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+@media (prefers-color-scheme: dark) {
+  .search-overlay-results mark {
+    background: rgba(255, 194, 0, 0.3);
+  }
+}
+
 /* The moved-in search bar drops its old centring constraints, and swaps its
    flat card background for the same glass material as the header buttons /
    pill nav. Press feedback + lit hover + swipe-deform come from the shared
@@ -193,7 +279,25 @@ html.search-vt .bn-search-btn {
 }
 
 .search-overlay-results .search-grid {
+  display: grid;
+  gap: 1rem;
   padding: 0;
+
+  animation: appear 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.search-overlay-results .search-grid.appeared {
+  animation: none;
+}
+
+.search-overlay-results .search-grid--classroom {
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+}
+
+@media (max-width: 600px) {
+  .search-overlay-results .search-grid {
+    gap: 0.75rem;
+  }
 }
 
 /* ── Section labels (Classrooms / Lessons & exams) ─────────────────── */
@@ -387,4 +491,23 @@ html.search-vt .bn-search-btn {
     opacity: 0;
     pointer-events: none;
   }
+}
+
+/* ── Empty / no-results state ────────────────────────────── */
+
+.search-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 0;
+  gap: 1.5rem;
+  flex: 1;
+}
+
+.search-too-many-notice {
+  text-align: center;
+  font-size: var(--text-75);
+  color: color-mix(in srgb, var(--text-color-primary) 45%, transparent);
+  padding: 0.75rem 1rem 0.25rem;
 }

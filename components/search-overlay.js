@@ -1,7 +1,7 @@
 // Search overlay — the bottom-nav search FAB opens this as a sheet over
 // whatever tab is currently showing, rather than switching to its own tab
 // page. It owns only the presentation/UX; the actual classroom text search
-// (data, index, card builders) lives in search-classrooms-script.js.
+// (data, index, card builders) lives in classroom-search-data.js.
 
 import { t, getLocale, onLanguageSwitch } from '../i18n.js';
 import { haptics, defaultPatterns } from './haptics.js';
@@ -15,7 +15,7 @@ import {
   hasOccupationData,
   SEARCH_MAX_RESULTS,
   OCC_MAX_GROUPS,
-} from '../search-classrooms-script.js';
+} from '../classroom-search-data.js';
 
 const DEBOUNCE_MS = 200;
 
