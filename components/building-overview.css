@@ -72,6 +72,13 @@
     0 2px 8px 0 var(--glass-shadow-color);
 }
 
+/* On teardown the tight morph shadow gives way to the resting 40px one; ease
+   it back over a beat instead of letting it snap in. Set only for that window
+   (see #teardown), so the cards carry no permanent box-shadow transition. */
+#available-classrooms-results.bo-shadow-restore .classroom-card {
+  transition: transform 0.15s ease, box-shadow 0.35s ease;
+}
+
 /* `.results-filter-row` sets `display:flex`, which outranks `[hidden]`. */
 .results-filter-row[hidden] {
   display: none;

@@ -545,10 +545,14 @@ class BuildingOverview {
 
   #teardown({ restoreListTop = null } = {}) {
     this.#cancelAnims();
+    // Ease the classroom cards' tight morph shadow back to the resting one as
+    // #unscopeSections drops .bo-onstage, rather than snapping it in.
+    this.#container?.classList.add('bo-shadow-restore');
     this.#unscopeSections();
     const { list, stage, container, grid } = {
       list: this.#list, stage: this.#stage, container: this.#container, grid: this.#grid,
     };
+    if (container) setTimeout(() => container.classList.remove('bo-shadow-restore'), 450);
 
     // Where the list sits on screen right now — used to hold it still across
     // the stage removal when the caller didn't ask for a specific target.
