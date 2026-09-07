@@ -139,12 +139,17 @@ class BuildingOverview {
     // is about to land on the card (that would open a classroom instead).
     list.style.pointerEvents = 'none';
     list.style.willChange = 'transform';
-    this.#scopeSections(this.#sectionFor(targetName));
+    // Off the pointer event — the forced layout here is what jitters the tap.
+    cancelAnimationFrame(this.#prewarmRaf);
+    this.#prewarmRaf = requestAnimationFrame(() => {
+      if (this.#phase === 'open') this.#scopeSections(this.#sectionFor(targetName));
+    });
     clearTimeout(this.#prewarmTimer);
     this.#prewarmTimer = setTimeout(() => {
       if (this.#phase === 'open') { list.style.display = 'none'; list.style.opacity = ''; this.#unscopeSections(); }
     }, 1500);
   }
+  #prewarmRaf = 0;
 
   open({ campusId, date, from, to, results, sourceSection, buildingName }) {
     if (this.#phase !== 'idle') return;
@@ -239,6 +244,7 @@ class BuildingOverview {
     this.#phase = 'closing';
     this.#isOpen = false;
     clearTimeout(this.#prewarmTimer);
+    cancelAnimationFrame(this.#prewarmRaf);
     document.removeEventListener('keydown', this.#onKey);
     this.#onKey = null;
     haptics.trigger(defaultPatterns.light);
@@ -681,7 +687,24 @@ class BuildingOverview {
       card.setAttribute('tabindex', '0');
       card.setAttribute('aria-label', `${t('building.prefix')} ${building.name}`);
       const go = () => { this.#pendingNavName = building.name; this.close(); };
-      card.addEventListener('pointerdown', () => this.prewarmClose(building.name));
+      // Navigate on pointerup, not click. prewarmClose reveals the parked list
+      // and forces layout on it during pointerdown; on iOS Safari that jitters
+      // the gesture enough that the synthetic click never arrives, so the first
+      // tap only played the :active scale. pointerup is a real event and always
+      // fires. click stays for keyboard / assistive-tech; close() is idempotent.
+      let downAt = null;
+      card.addEventListener('pointerdown', (e) => {
+        downAt = { x: e.clientX, y: e.clientY, t: performance.now() };
+        this.prewarmClose(building.name);
+      });
+      card.addEventListener('pointerup', (e) => {
+        if (!downAt) return;
+        const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
+        const held = performance.now() - downAt.t;
+        downAt = null;
+        if (moved <= 12 && held < 700) go();
+      });
+      card.addEventListener('pointercancel', () => { downAt = null; });
       card.addEventListener('click', go);
       card.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
