@@ -17,13 +17,16 @@
 
 /* Unclipped at rest, so the cards' soft shadows aren't cut off at the frame's
    edges. Clipping is only needed while a morph runs (the incoming layer starts
-   blown up ~2× around the anchor), and then it's a `clip-path`, NOT
-   `overflow: hidden`: hidden would make the stage a scroll container, which
-   would become the new reference for the list's sticky building headers —
-   every stuck header would snap back to its natural spot the instant the list
-   moved into the stage. The inset is negative on the x axis so the shadows
-   (40px blur) still have room sideways during the morph; vertically it clips
-   at the frame, where the sticky chrome sits anyway. */
+   blown up ~2× around the anchor). It's `overflow: clip`, NOT:
+   - `overflow: hidden` — that makes the stage a scroll container, which would
+     become the new reference for the list's sticky building headers, snapping
+     every stuck one back to its natural spot the instant the list moved in.
+     `overflow: clip` clips paint without being a scroll container.
+   - `clip-path` — Safari doesn't reliably clip composited (will-change /
+     transform) descendants against an ancestor's clip-path, so the blown-up
+     grid escaped the frame and rode over the list.
+   `overflow-clip-margin` keeps a little sideways room for the shadows where
+   it's supported; a tight clip is the harmless fallback. */
 .bo-stage {
   position: relative;
   width: 100%;
@@ -35,7 +38,8 @@
 }
 
 #available-classrooms-results.bo-animating .bo-stage {
-  clip-path: inset(0 -3rem);
+  overflow: clip;
+  overflow-clip-margin: 3rem;
 }
 
 /* backdrop-filter is far too expensive to animate — drop it on every glass
@@ -144,7 +148,9 @@
     0 4px 40px 0 var(--glass-shadow-color);
 }
 
+/* Same glass pill as .header-button (press / hover come from `.liquid-glass`). */
 .bo-close {
+  position: relative;
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -152,8 +158,35 @@
   width: 2.25rem;
   height: 2.25rem;
   border: none;
+  border-color: transparent;
   border-radius: var(--radius-pill);
-  color: var(--text-color-primary);
+  color: var(--text-color-secondary);
+
+  background: var(--glass-tint);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline),
+    var(--glass-highlight),
+    0 4px 40px 0 var(--glass-shadow-color);
+}
+
+/* Outside 0.5px gradient stroke — radial-gradient mask, same as
+   .header-button::after in style.css (a true circle has a seam with the
+   box-corner mask trick). */
+.bo-close::after {
+  content: "";
+  position: absolute;
+  inset: -0.5px;
+  border-radius: inherit;
+
+  background: var(--glass-stroke-gradient);
+  opacity: var(--glass-stroke-opacity);
+
+  -webkit-mask-image: radial-gradient(circle closest-side, transparent calc(100% - 0.5px), #fff calc(100% - 0.5px));
+  mask-image: radial-gradient(circle closest-side, transparent calc(100% - 0.5px), #fff calc(100% - 0.5px));
+
+  pointer-events: none;
 }
 
 .bo-close .material-symbols-outlined {

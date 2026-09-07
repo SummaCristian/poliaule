@@ -69,6 +69,7 @@ function scrollerFor(container, stickyTop) {
       visibleTop: () => container.getBoundingClientRect().top + container.clientTop + stickyTop,
       visibleBottom: () => container.getBoundingClientRect().top + container.clientTop + container.clientHeight,
       scrollBy: (dy) => container.scrollBy({ top: dy, behavior: 'instant' }),
+      contentHeight: () => container.scrollHeight,
     };
   }
   return {
@@ -77,6 +78,7 @@ function scrollerFor(container, stickyTop) {
     // The page has `scroll-behavior: smooth` — every scroll here has to be
     // explicitly instant or it turns into a visible glide.
     scrollBy: (dy) => window.scrollBy({ top: dy, behavior: 'instant' }),
+    contentHeight: () => document.documentElement.scrollHeight,
   };
 }
 
@@ -173,6 +175,7 @@ class BuildingOverview {
     const from_ = this.#anchorRect(sourceSection, visibleTop);
     this.#listTop0 = list.getBoundingClientRect().top;
     this.#openViewport = this.#viewportKey();
+    const docHeight0 = this.#scroller.contentHeight();
 
     // A dedicated stage — a positioned, clipped frame we fully control — takes
     // the list's place. The results container's own (sticky, grid-placed,
@@ -196,7 +199,26 @@ class BuildingOverview {
     stage.style.minHeight = `${this.#scroller.visibleBottom() - visibleTop}px`;
 
     // Grid in flow (it sizes the stage), list re-parked on top of where it was.
-    this.#swapIn(this.#grid, this.#list, this.#listTop0);
+    // Then scroll the grid so the building we're zooming out of lands where its
+    // section was on screen — not pinned to the grid's top. Without this, a tap
+    // from the bottom of a scrolled list flings the grid up to its first card
+    // and the zoom chases a target far from where you're looking.
+    //
+    // But only within what the grid can actually cover: #swapIn has parked the
+    // grid's top at the visible top, so a downward shift is capped so the grid's
+    // bottom never rises above the visible bottom (a short grid doesn't move at
+    // all). Scrolling further would only reveal the stage padding below the
+    // grid, and that padding is dropped once the zoom settles — which would
+    // then clamp the scroll and jump the grid down.
+    const anchorTop = from_?.top ?? visibleTop;
+    this.#swapIn(this.#grid, this.#list, this.#listTop0, () => {
+      const card = this.#cardFor(buildingName);
+      if (!card) return;
+      const want = card.getBoundingClientRect().top - anchorTop;
+      const viewportH = this.#scroller.visibleBottom() - this.#scroller.visibleTop();
+      const maxDown = Math.max(0, this.#grid.getBoundingClientRect().height - viewportH);
+      this.#scroller.scrollBy(want < 0 ? want : Math.min(want, maxDown));
+    }, docHeight0);
 
     const heroCard = this.#cardFor(buildingName);
     const to_ = heroCard?.getBoundingClientRect();
@@ -224,6 +246,7 @@ class BuildingOverview {
     const targetName = this.#pendingNavName || this.#sourceName;
     const { list, grid } = { list: this.#list, grid: this.#grid };
     const container = this.#container;
+    const docHeight0 = this.#scroller.contentHeight();
 
     container.classList.add('bo-animating');
     if (this.#filterRow) this.#filterRow.hidden = false;
@@ -263,7 +286,7 @@ class BuildingOverview {
         this.#scroller.scrollBy(list.getBoundingClientRect().top - this.#listTop0);
       }
     };
-    this.#swapIn(list, grid, gridTop0, settle);
+    this.#swapIn(list, grid, gridTop0, settle, docHeight0);
 
     // No section to land on (hidden by the partial-free filter): zoom into
     // the top of the list instead of cutting.
@@ -295,7 +318,7 @@ class BuildingOverview {
   // Everything happens before the next paint, so on screen the outgoing layer
   // hasn't moved and the scroll change is invisible — the incoming layer is
   // the only thing that "appears", and the zoom animates it in.
-  #swapIn(incoming, outgoing, outgoingTop0, settle = () => {}) {
+  #swapIn(incoming, outgoing, outgoingTop0, settle = () => {}, heightBefore = 0) {
     const stage = this.#stage;
     clearLayer(incoming);
     incoming.style.position = 'relative';
@@ -304,6 +327,19 @@ class BuildingOverview {
     outgoing.style.position = 'absolute';
     outgoing.style.insetInline = '0';
     outgoing.style.zIndex = '1';
+
+    // If the swap made the scroller shorter (e.g. a tall list becoming a short
+    // grid while parked at the very bottom of the page), the scrollBy calls
+    // below would be clamped and both layers would lurch. Pad the shortfall
+    // onto the stage so the scroll position is preserved; #settleOpen /
+    // #teardown release it once nothing is animating.
+    if (heightBefore) {
+      const deficit = heightBefore - this.#scroller.contentHeight();
+      if (deficit > 0) {
+        const cur = parseFloat(stage.style.minHeight) || 0;
+        stage.style.minHeight = `${cur + deficit}px`;
+      }
+    }
 
     // Default: bring the frame's top to the visible top.
     this.#scroller.scrollBy(stage.getBoundingClientRect().top - this.#scroller.visibleTop());
@@ -328,7 +364,7 @@ class BuildingOverview {
     incoming.style.willChange = 'transform, opacity';
 
     // The path the shared anchor travels: straight line from → to, bowed
-    // sideways by ARC. The bow always lifts upward; for a purely vertical move
+    // sideways by ARC. The bow always lifts upward; for a (near-)vertical move
     // it bows toward the stage's centre line (judged from the narrower rect,
     // the card — a section spans the full width and has no side). Defined from
     // the pair of rects only, so the zoom back travels the exact same curve.
@@ -338,7 +374,10 @@ class BuildingOverview {
     let nx = 0, ny = 0;
     if (len > 1) {
       nx = -dy / len; ny = dx / len;
-      if (Math.abs(ny) < 1e-6) {
+      // Within ~9° of vertical, the true perpendicular is almost horizontal and
+      // its sign swings on sub-pixel noise in dx — one run bows left, the next
+      // bows right. Snap those to the deterministic centre-line bow instead.
+      if (Math.abs(ny) < 0.15) {
         const narrow = from.width < to.width ? from : to;
         const mid = narrow.left + narrow.width / 2;
         nx = mid <= stageRect.left + stageRect.width / 2 ? 1 : -1;
@@ -383,10 +422,18 @@ class BuildingOverview {
     // a reversed open finishes its (reversed) animations too, but by then the
     // phase has moved on and the caller must not settle.
     const phase = this.#phase;
-    return Promise.all(anims.map(a => a.finished)).then(
-      () => (this.#phase === phase),
-      () => false
-    );
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (ok) => { if (!settled) { settled = true; resolve(ok); } };
+      Promise.all(anims.map(a => a.finished)).then(
+        () => finish(this.#phase === phase),
+        () => finish(false),
+      );
+      // Backstop: iOS Safari sometimes never resolves `.finished` for a
+      // composited animation, which would strand the view mid-morph (class,
+      // clip and phase never cleaned up). Settle on our own clock if so.
+      setTimeout(() => finish(this.#phase === phase), DUR + 150);
+    });
   }
 
   // Tapped the card / × while still zooming out: run the same animations
@@ -402,6 +449,22 @@ class BuildingOverview {
 
     const anims = this.#anims;
     anims.forEach(a => a.reverse());
+
+    // `reverse()` plays the opacity keyframes backwards too, but the zoom's
+    // cross-fade is sampled against the spring's progress, which front-loads
+    // itself — run backwards it bunches into the final moments, so the grid we
+    // are leaving stays fully opaque almost the whole way and then snaps. Drive
+    // the opacity ourselves with a plain linear cross-fade over the time that's
+    // actually left (a reversed animation runs from `currentTime` back to 0).
+    const left = Math.max(120, anims[0].currentTime ?? DUR);
+    const fade = { duration: left, easing: 'linear', fill: 'both' };
+    this.#anims.push(
+      this.#grid.animate(
+        [{ opacity: getComputedStyle(this.#grid).opacity }, { opacity: 0 }], fade),
+      this.#list.animate(
+        [{ opacity: getComputedStyle(this.#list).opacity }, { opacity: 1 }], fade),
+    );
+
     Promise.all(anims.map(a => a.finished)).then(() => {
       // Both layers are back at rest; put the list back into flow and cancel
       // the scroll shift that #swapIn made on open, all before the next paint.
@@ -461,6 +524,15 @@ class BuildingOverview {
     clearLayer(this.#grid);
     this.#grid.style.position = 'relative';
     this.#grid.style.zIndex = '2'; // above the parked list, always
+
+    // Drop the anti-clamp padding #swapIn may have added for the zoom, back to
+    // the plain one-screen minimum — keeping the grid where it sits on screen
+    // as the scroller shrinks (the browser clamps it up if the grid is short).
+    const gridTop = this.#grid.getBoundingClientRect().top;
+    this.#stage.style.minHeight =
+      `${this.#scroller.visibleBottom() - this.#scroller.visibleTop()}px`;
+    this.#scroller.scrollBy(this.#grid.getBoundingClientRect().top - gridTop);
+
     this.#container.classList.remove('bo-animating');
     this.#phase = 'open';
   }
@@ -472,6 +544,12 @@ class BuildingOverview {
       list: this.#list, stage: this.#stage, container: this.#container, grid: this.#grid,
     };
 
+    // Where the list sits on screen right now — used to hold it still across
+    // the stage removal when the caller didn't ask for a specific target.
+    // Dropping the (possibly padded, grid-tall) stage for the list's natural
+    // height shrinks the scroller and would otherwise clamp the scroll.
+    const listTopNow = list?.getBoundingClientRect().top ?? null;
+
     if (list) {
       list.style.display = '';
       clearLayer(list);
@@ -482,8 +560,9 @@ class BuildingOverview {
     if (this.#filterRow) this.#filterRow.hidden = false;
     container?.classList.remove('bo-active', 'bo-animating');
 
-    if (restoreListTop != null && list && this.#scroller) {
-      this.#scroller.scrollBy(list.getBoundingClientRect().top - restoreListTop);
+    const target = restoreListTop ?? listTopNow;
+    if (target != null && list && this.#scroller) {
+      this.#scroller.scrollBy(list.getBoundingClientRect().top - target);
     }
 
     this.#stage = null;

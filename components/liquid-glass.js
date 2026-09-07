@@ -24,7 +24,10 @@ const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
 // How hard the element scales down the instant it's touched (before any drag).
 const PRESS_SCALE = 0.94;
 // Pointer travel (px) before we treat the gesture as a drag rather than a tap.
-const DRAG_THRESHOLD = 3;
+// Below this a release still fires the control's click; above it the click is
+// swallowed as a deform gesture. 3px was under a real finger's tap jitter, so
+// ordinary taps on big surfaces (the building name pills) were being eaten.
+const DRAG_THRESHOLD = 8;
 
 function beginPress(el, e) {
   // Ignore secondary mouse buttons; let real clicks/taps through untouched.

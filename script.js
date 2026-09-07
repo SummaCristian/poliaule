@@ -225,19 +225,34 @@ function buildBuildingSection(building, rooms, from, to, cardIndex = 0, isToday 
 
   // Tapping the name pill "zooms out" into the building overview grid.
   const titlesBtn = headerEl.querySelector('.building-section-titles');
-  titlesBtn.addEventListener('pointerdown', () => buildingOverview.prewarm(section));
-  titlesBtn.addEventListener('click', () => {
-    haptics.trigger(defaultPatterns.light);
-    buildingOverview.open({
-      campusId,
-      date,
-      from,
-      to,
-      results: allResults,
-      sourceSection: section,
-      buildingName,
-    });
+  const openOverview = () => buildingOverview.open({
+    campusId,
+    date,
+    from,
+    to,
+    results: allResults,
+    sourceSection: section,
+    buildingName,
   });
+  let downAt = null;
+  titlesBtn.addEventListener('pointerdown', (e) => {
+    downAt = { x: e.clientX, y: e.clientY, t: performance.now() };
+    buildingOverview.prewarm(section);
+  });
+  // Open on pointerup, not click: iOS Safari swallows the click when the tap
+  // lands while the page is still rubber-banding from a scroll (very easy to
+  // hit when you've just scrolled to the bottom of the list), and the shared
+  // liquid-glass handler eats it after a few px of finger travel. A short,
+  // near-stationary press is a tap. open() is a no-op if one already ran.
+  titlesBtn.addEventListener('pointerup', (e) => {
+    if (!downAt) return;
+    const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
+    const held = performance.now() - downAt.t;
+    downAt = null;
+    if (moved <= 12 && held < 700) openOverview();
+  });
+  // Fallback for keyboard / assistive-tech activation, which fires click only.
+  titlesBtn.addEventListener('click', openOverview);
 
   // Jump to this building's page in the Campus tab. The tab has to be made
   // visible *before* renderClassrooms runs — building the grid while the tab
