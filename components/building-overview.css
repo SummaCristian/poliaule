@@ -50,6 +50,18 @@
   -webkit-backdrop-filter: none !important;
 }
 
+/* The topbar (Edifici pill + ×) is `position: sticky`, which promotes it to its
+   own compositor layer — and that layer doesn't pick up the grid's animated
+   opacity, so it stays fully opaque through the whole morph. You only notice it
+   where it sits over the near-stationary anchor card (the pill over the first
+   card); the × rides the grid outward and its stuck-ness isn't obvious. Drop
+   the sticky layer for the morph — nothing scrolls during it anyway — and it
+   fades with the rest of the grid. z-index still keeps it above the cards. */
+#available-classrooms-results.bo-animating .bo-topbar {
+  position: relative;
+  top: auto;
+}
+
 /* The zoom drags a lot of off-screen list through the frame (the whole list
    shrinks by ~2×). building-overview.js tags the sections that can actually
    pass through it `.bo-onstage` — their cards get content-visibility forced
@@ -72,10 +84,21 @@
     0 2px 8px 0 var(--glass-shadow-color);
 }
 
-/* On teardown the tight morph shadow gives way to the resting 40px one; ease
-   it back over a beat instead of letting it snap in. Set only for that window
-   (see #teardown), so the cards carry no permanent box-shadow transition. */
-#available-classrooms-results.bo-shadow-restore .classroom-card {
+/* The card keeps its photo and label through the morph — that's what makes it
+   read as a card. What comes off is only the two edge treatments that don't
+   survive a 2× scale anyway: the inset highlight (::before) and, the one that
+   actually costs, the 0.5px mask-composite gradient stroke (::after) — one
+   extra compositing pass per card, ~40 of them on the first frame. They snap
+   back on teardown; at that size nobody sees the transition. */
+#available-classrooms-results.bo-animating .classroom-card::before,
+#available-classrooms-results.bo-animating .classroom-card::after {
+  display: none;
+}
+
+/* On teardown the tight morph shadow gives way to the resting 40px one — ease
+   it back instead of snapping. Set only for that window (see #teardown), so
+   the cards carry no permanent box-shadow transition. */
+#available-classrooms-results.bo-restore .classroom-card {
   transition: transform 0.15s ease, box-shadow 0.35s ease;
 }
 
