@@ -1,0 +1,124 @@
+/* Keyboard-shortcuts help overlay (opened with "?" on desktop). */
+
+.kb-help-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+/* The `hidden` attribute must win over `display: flex` above, or the
+   full-screen backdrop keeps swallowing every click while closed. */
+.kb-help-backdrop[hidden] {
+  display: none;
+}
+
+.kb-help-backdrop.visible {
+  opacity: 1;
+}
+
+.kb-help-panel {
+  position: relative;
+  width: min(380px, 100%);
+  padding: 24px;
+  border-radius: var(--radius-xl);
+  color: var(--text-color-primary);
+
+  /* Same glass material as the popovers / header buttons — see the recipe
+     note at :root's --glass-tint definition. */
+  background: var(--glass-tint);
+  backdrop-filter: blur(var(--glass-blur-lg));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline),
+    var(--glass-highlight),
+    0 4px 40px 0 var(--glass-shadow-color);
+
+  transform: translateY(8px) scale(0.98);
+  transition: transform 0.18s ease;
+}
+
+/* Outside 0.5px gradient stroke — same recipe as .popover::after. */
+.kb-help-panel::after {
+  content: "";
+  position: absolute;
+  inset: -0.5px;
+  border-radius: inherit;
+  padding: 0.5px;
+  background: var(--glass-stroke-gradient);
+  opacity: var(--glass-stroke-opacity);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .kb-help-panel {
+    background: color-mix(in srgb, var(--background-color-secondary) 95%, black);
+  }
+}
+
+.kb-help-backdrop.visible .kb-help-panel {
+  transform: none;
+}
+
+.kb-help-title {
+  margin: 0 0 16px;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.kb-help-list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 16px;
+  align-items: center;
+}
+
+.kb-help-list dt {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.kb-help-list dd {
+  margin: 0;
+  color: var(--text-color-secondary);
+  font-size: 0.9rem;
+}
+
+.kb-help-list kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-shadow-color, rgba(0, 0, 0, 0.15));
+  border-bottom-width: 2px;
+  background: var(--background-color);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* Touch-first devices never see the trigger; belt-and-braces if it's ever
+   opened programmatically on a narrow screen. */
+@media (max-width: 599px) {
+  .kb-help-backdrop { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-help-backdrop,
+  .kb-help-panel { transition: none; }
+}

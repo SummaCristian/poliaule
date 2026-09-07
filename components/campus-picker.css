@@ -96,6 +96,7 @@
 
 :host([data-loading]) .campus-select-skeleton {
   display: block;
+  width: 10rem;
   height: 3rem;
   border-radius: var(--radius-md);
   background: linear-gradient(90deg,
@@ -146,7 +147,6 @@
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   text-align: left;
   color: var(--cp-text);
-  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 
   background: var(--cp-glass-tint);
@@ -297,71 +297,198 @@
   white-space: nowrap;
 }
 
-/* ── Dropdown — glass, native Popover API (top layer) ───────────────────── */
-.cp-popup {
-  /* floating-ui writes left/top; strip the UA popover centring + border. */
+/* ── The pill morphs into this panel and back ──────────────────────────────
+   Same shell technique as settings.js / time-picker.js: a fixed element
+   whose box (top/left/width/height/border-radius) transitions between the
+   trigger's rect and the panel's. campus-picker.js drives the geometry;
+   `.cp-anim` on the host hides the pill for the duration, and the inner
+   content fades in once the shell has expanded. */
+.cp-overlay {
   position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.cp-overlay.is-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.cp-popup {
+  position: fixed;
+  z-index: 1200;
   margin: 0;
   inset: auto;
   border: 0;
-  padding: 16px;
+  padding: 0;
+  display: none;            /* JS sets 'flex' on open */
+  flex-direction: column;
 
   box-sizing: border-box;
-  width: 176px;
+  width: 208px;
   max-width: calc(100vw - 16px);
-  max-height: min(60vh, 24rem);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: clip;
   border-radius: 16px;
-  scrollbar-width: thin;
-  text-align: left; /* body sets text-align:center; popovers inherit it */
+  text-align: left; /* body sets text-align:center; this inherits it */
+
+  /* UI chrome, not selectable text — same as the date/time pickers. */
+  -webkit-user-select: none;
+  user-select: none;
 
   background: var(--cp-glass-tint);
   -webkit-backdrop-filter: blur(var(--cp-glass-blur));
   backdrop-filter: blur(var(--cp-glass-blur));
   color: var(--cp-text);
 
-  /* No ::after ring on a top-layer popover — the rim is the 0.1px outline
-     in the shadow stack instead. */
   box-shadow:
     0 0 0 0.1px var(--cp-glass-outline),
     var(--cp-glass-highlight),
     0 12px 40px 0 var(--cp-glass-shadow-color);
 
-  /* Closed / exit state. transform-origin is set from JS to point at the
-     trigger. `overlay`/`display` are transitioned with allow-discrete so the
-     popup stays in the top layer for the whole exit animation instead of
-     being yanked out (and clipped) the instant hidePopover() runs. */
-  opacity: 0;
-  transform: scale(0.9);
+  /* Morph geometry + the liquid-glass press/drag deform (translate/scale),
+     merged into one declaration. liquid-glass.css isn't loaded in this shadow
+     root, so the deform's spring easing is spelled out here directly rather
+     than inherited from the generic `.liquid-glass` rule. */
+  translate: 0 0;
+  scale: 1;
   transition:
-    opacity 0.18s ease,
-    transform 0.18s cubic-bezier(0.4, 0, 1, 1),
-    overlay 0.18s allow-discrete,
-    display 0.18s allow-discrete;
+    top 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    left 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    height 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 0.42s ease,
+    translate var(--press-out-dur) var(--ease-spring),
+    scale var(--press-out-dur) var(--ease-spring),
+    filter 0.2s ease;
+
+  will-change: top, left, width, height;
+}
+
+/* Snap down fast on touch, track 1:1 while dragging — mirrors liquid-glass.css. */
+.cp-popup.lg-pressing {
+  transition:
+    border-radius 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    translate var(--press-in-dur) var(--press-in-ease),
+    scale var(--press-in-dur) var(--press-in-ease),
+    filter 0.2s ease;
+}
+
+.cp-popup.lg-dragging {
+  transition:
+    border-radius 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    translate 0s, scale 0s, filter 0.2s ease;
+}
+
+.cp-popup.lg-pressing,
+.cp-popup.lg-dragging {
+  filter: brightness(1.11) saturate(1.35);
+}
+
+/* The title bar is the deform handle (see attachLiquidGlass `from:` in
+   campus-picker.js). Native-app feel: no grab hand — the press/drag deform is
+   its own affordance (see the cursor rule in style.css). */
+.cp-popup__title {
+  cursor: default;
+  touch-action: none;
 }
 
 .cp-popup:focus-visible {
   outline: none;
 }
 
-/* Open resting state + springy entry (overshoot via --ease-spring). The
-   longer duration here only applies to the enter transition. */
-.cp-popup:popover-open {
-  opacity: 1;
-  transform: scale(1);
+/* Scroll container. Fixed width so it doesn't reflow while the shell scales;
+   the shell's `overflow: clip` hides it until it's faded in.
+
+   Scrolling stays OFF until the shell has finished expanding (`--open`):
+   mid-morph the shell is far shorter than this content, so an always-on
+   `overflow-y: auto` renders a scrollbar for the whole animation that only
+   vanishes once the shell reaches full height. */
+.cp-popup__inner {
+  flex: 1;
+  min-height: 0;
+  width: 208px;
+  box-sizing: border-box;
+  padding: 16px;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+
+  opacity: 0;
+  transform: translateY(6px);
   transition:
-    opacity 0.16s ease,
-    transform var(--press-out-dur) var(--ease-spring),
-    overlay var(--press-out-dur) allow-discrete,
-    display var(--press-out-dur) allow-discrete;
+    opacity 0.18s ease,
+    transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-@starting-style {
-  .cp-popup:popover-open {
-    opacity: 0;
-    transform: scale(0.9);
-  }
+.cp-popup--open .cp-popup__inner {
+  opacity: 1;
+  transform: none;
+  transition-delay: 0.16s;
+  overflow-y: auto;
+}
+
+/* Thin, unobtrusive scrollbar for the campus list (Firefox uses
+   `scrollbar-width: thin` above). */
+.cp-popup__inner::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cp-popup__inner::-webkit-scrollbar-thumb {
+  background: var(--cp-text-50);
+  border-radius: 3px;
+}
+
+.cp-popup__inner::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Shell cross-fades out over the reformed pill at the end of the close. */
+.cp-popup--closing {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+/* Hide the pill while it's morphed into the panel. */
+:host(.cp-anim) .campus-select {
+  visibility: hidden;
+}
+
+/* When the pill reforms after a close, its contents fade in (the glass box
+   itself just swaps for the identical shell). */
+.campus-select__icon,
+.campus-select__box,
+.campus-select__chevron {
+  transition: opacity 0.24s ease, transform 0.2s ease;
+}
+
+:host(.cp-content-hidden) .campus-select__icon,
+:host(.cp-content-hidden) .campus-select__box,
+:host(.cp-content-hidden) .campus-select__chevron {
+  opacity: 0;
+  transition: none;
+}
+
+/* ── Panel title ── same icon + word as the pill, in the section-label
+   style but a size down. */
+.cp-popup__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0 10px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cp-text-50);
+}
+
+.cp-popup__title-icon {
+  font-size: 16px;
+  line-height: 1;
 }
 
 /* ── Section headers ── 8px between the two sections. */
@@ -372,7 +499,7 @@
   color: var(--cp-text-50);
 }
 
-.cp-section:not(:first-child) {
+.cp-section + .cp-section {
   margin-top: 8px;
 }
 
@@ -386,7 +513,6 @@
   padding: 8px;
   border-radius: 8px;
   color: var(--cp-text);
-  cursor: pointer;
 }
 
 .campus-option__check {
@@ -454,8 +580,58 @@
 
 @media (prefers-reduced-motion: reduce) {
   .cp-popup,
-  .cp-popup:popover-open,
+  .cp-popup.lg-pressing,
+  .cp-popup.lg-dragging,
+  .cp-popup__inner,
+  .cp-overlay,
   .campus-select__chevron {
     transition: none;
+  }
+  .cp-popup__inner {
+    transform: none;
+  }
+}
+
+/* ── Docked (inline-expanded) mode ────────────────────────────────────────
+   Desktop 2-column layout: the listbox sits directly in the form column
+   instead of morphing out of the pill into a fixed popup. Same glass chrome,
+   no fixed positioning, no morph transition. Toggled by components/picker-dock.js;
+   the shadow host (.cp-panel-host) is styled from style.css (light DOM). */
+.cp-popup--docked {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  /* A touch under the 13rem floating popup — still far wider than any campus
+     label needs, so nothing clips. */
+  width: 12.5rem;
+  height: auto !important;
+  /* A long campus list scrolls inside the card rather than growing the column. */
+  max-height: min(60vh, 26rem);
+  border-radius: 16px !important;
+  transition:
+    translate var(--press-out-dur) var(--ease-spring),
+    scale var(--press-out-dur) var(--ease-spring),
+    filter 0.2s ease;
+  will-change: auto;
+  box-shadow:
+    0 0 0 0.1px var(--cp-glass-outline),
+    var(--cp-glass-highlight),
+    0 4px 24px 0 var(--cp-glass-shadow-color);
+}
+
+.cp-popup--docked .cp-popup__inner {
+  width: 100%;
+  opacity: 1;
+  transform: none;
+  transition: none;
+  max-height: min(60vh, 26rem);
+}
+
+/* Match the date / time docked panels' hover: a gentle lift, no brightness
+   boost (it blows out the list in light mode). liquid-glass.css isn't loaded
+   in this shadow root, so spell it out. */
+@media (hover: hover) {
+  .cp-popup--docked:hover {
+    scale: 1.03;
   }
 }

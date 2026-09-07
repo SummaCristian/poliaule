@@ -11,12 +11,12 @@ import { haptics, defaultPatterns } from './haptics.js';
 import { t, onLanguageSwitch } from '../i18n.js';
 import { DEFAULT_TAB_KEY, LAST_TAB_KEY, getStartupTabId } from './settings.js';
 import { Spring, onSpringFrame } from '../utils/spring.js';
+import { openSearchOverlay } from './search-overlay.js';
 
 const GROUP_TABS = [
   { target: 'available-classrooms-container', icon: 'hgi-calendar-03', labelKey: 'tabs.available' },
   { target: 'search-classrooms-container', icon: 'hgi-university', labelKey: 'tabs.campus' },
 ];
-const SEARCH_TARGET = 'search-placeholder-container';
 
 const TAP_SCALE = 1.3;
 const RAIL_GIVE = 11;         // elastic px the pill can be pulled past the end anchors
@@ -66,7 +66,7 @@ GROUP_TABS.forEach((tab, i) => {
       <i class="hgi-stroke ${tab.icon}"></i>
       <span class="bn-tab-label" data-i18n="${tab.labelKey}">${tabLabel(tab)}</span>
     </span>`;
-  btn.addEventListener('click', () => { if (searchActive || i !== groupIndex) animateGroupTap(i); });
+  btn.addEventListener('click', () => { if (i !== groupIndex) animateGroupTap(i); });
   barItems.appendChild(btn);
 
   const active = document.createElement('span');
@@ -78,7 +78,7 @@ GROUP_TABS.forEach((tab, i) => {
 });
 
 searchBtn.querySelector('.bn-tab-label').textContent = t('tabs.search');
-searchBtn.addEventListener('click', () => { if (!searchActive) animateSearchTap(); });
+searchBtn.addEventListener('click', () => animateSearchTap());
 
 onLanguageSwitch(() => {
   bar.querySelectorAll('.bn-tab-label').forEach((el, i) => { el.textContent = tabLabel(GROUP_TABS[i]); });
@@ -91,7 +91,6 @@ onLanguageSwitch(() => {
 // pill has to slide AND resize between anchors of different widths — each
 // anchor below is the pill's {x, w} for sitting exactly on top of one tab.
 let groupIndex = 0;
-let searchActive = false;
 let didInit = false;
 let itemsW = 0, itemsH = 0, pillCross = 0;
 let anchors = [];
@@ -310,30 +309,14 @@ function persist(targetId) {
 
 function setGroupActive(i) {
   groupIndex = i;
-  searchActive = false;
   bar.querySelectorAll('.bn-tab-item').forEach((btn, j) => {
     btn.setAttribute('aria-selected', j === i ? 'true' : 'false');
   });
-  searchBtn.setAttribute('aria-selected', 'false');
-  searchBtn.classList.remove('active');
-  group.classList.remove('bn-group--inactive');
 
   const targetId = GROUP_TABS[i].target;
   showContent(targetId);
   window.scrollTo(0, 0);
   persist(targetId);
-}
-
-function setSearchActive() {
-  searchActive = true;
-  bar.querySelectorAll('.bn-tab-item').forEach(btn => btn.setAttribute('aria-selected', 'false'));
-  searchBtn.setAttribute('aria-selected', 'true');
-  searchBtn.classList.add('active');
-  group.classList.add('bn-group--inactive');
-
-  showContent(SEARCH_TARGET);
-  window.scrollTo(0, 0);
-  persist(SEARCH_TARGET);
 }
 
 function animateGroupTap(i) {
@@ -350,8 +333,8 @@ function animateGroupTap(i) {
 }
 
 function animateSearchTap() {
-  setSearchActive();
   haptics.trigger(defaultPatterns.light);
+  openSearchOverlay();
 
   searchScale.to(TAP_SCALE, { stiffness: 500, damping: 25, mass: 0.5 });
   setTimeout(() => searchScale.to(1, { stiffness: 350, damping: 30, mass: 0.8 }), 250);
@@ -360,7 +343,7 @@ function animateSearchTap() {
 /* --- Programmatic tab activation (e.g. the building header's jump button) - */
 export function activateGroupTab(target) {
   const i = GROUP_TABS.findIndex(tab => tab.target === target);
-  if (i === -1 || (!searchActive && i === groupIndex)) return;
+  if (i === -1 || i === groupIndex) return;
   animateGroupTap(i);
 }
 
@@ -500,7 +483,7 @@ function release(e, terminated) {
   pillPos.to(target.pos, { stiffness: 400, damping: 38, mass: 0.8 });
   pillMain.to(target.size, { stiffness: 400, damping: 38, mass: 0.8 });
   setTimeout(() => scale.to(1, { stiffness: 350, damping: 30, mass: 0.8 }), 200);
-  if (searchActive || nearest !== groupIndex) {
+  if (nearest !== groupIndex) {
     setGroupActive(nearest);
     haptics.trigger(defaultPatterns.light);
   }
@@ -528,21 +511,12 @@ bar.addEventListener('keydown', (e) => {
 /* --- Startup ---------------------------------------------------- */
 {
   const startupId = getStartupTabId();
-  if (startupId === SEARCH_TARGET) {
-    groupIndex = 0;
-    searchActive = true;
-    showContent(SEARCH_TARGET);
-    searchBtn.setAttribute('aria-selected', 'true');
-    searchBtn.classList.add('active');
-    group.classList.add('bn-group--inactive');
-  } else {
-    const startupIndex = GROUP_TABS.findIndex(tab => tab.target === startupId);
-    groupIndex = startupIndex === -1 ? 0 : startupIndex;
-    showContent(GROUP_TABS[groupIndex].target);
-    bar.querySelectorAll('.bn-tab-item').forEach((btn, j) => {
-      btn.setAttribute('aria-selected', j === groupIndex ? 'true' : 'false');
-    });
-  }
+  const startupIndex = GROUP_TABS.findIndex(tab => tab.target === startupId);
+  groupIndex = startupIndex === -1 ? 0 : startupIndex;
+  showContent(GROUP_TABS[groupIndex].target);
+  bar.querySelectorAll('.bn-tab-item').forEach((btn, j) => {
+    btn.setAttribute('aria-selected', j === groupIndex ? 'true' : 'false');
+  });
 }
 
 function setNavSizeVars() {

@@ -190,6 +190,41 @@ function getFreeSlots(occupancy, fromTime, toTime) {
 }
 
 /**
+ * Given a classroom's occupancy slots and a reference instant (Date), returns
+ * the availability status relative to that instant.
+ * Possible return values: 'free', 'occupied', 'free-soon', 'occupied-soon'.
+ */
+export function computeClassroomStatus(occupancy, refDate) {
+  const slots = occupancy ?? [];
+  const currentTime = `${String(refDate.getHours()).padStart(2, '0')}:${String(refDate.getMinutes()).padStart(2, '0')}`;
+
+  const isOccupiedNow = slots.some(slot => currentTime >= slot.inizio && currentTime < slot.fine);
+
+  const thirtyMinsLater = new Date(refDate.getTime() + 30 * 60 * 1000);
+  const thirtyMinsLaterTime = `${String(thirtyMinsLater.getHours()).padStart(2, '0')}:${String(thirtyMinsLater.getMinutes()).padStart(2, '0')}`;
+
+  if (isOccupiedNow) {
+    // Check if it will be free within 30 mins
+    const currentSlot = slots.find(slot => currentTime >= slot.inizio && currentTime < slot.fine);
+    // If current slot ends within 30 mins AND no other slot starts before that 30 min window ends
+    if (currentSlot.fine < thirtyMinsLaterTime) {
+      const nextOccupancy = slots.some(slot => slot.inizio >= currentSlot.fine && slot.inizio < thirtyMinsLaterTime);
+      if (!nextOccupancy) {
+        return 'free-soon';
+      }
+    }
+    return 'occupied';
+  } else {
+    // Currently free. Check if it will be occupied within 30 mins.
+    const nextOccupancy = slots.some(slot => slot.inizio > currentTime && slot.inizio < thirtyMinsLaterTime);
+    if (nextOccupancy) {
+      return 'occupied-soon';
+    }
+    return 'free';
+  }
+}
+
+/**
  * Returns the current availability status of a classroom relative to NOW.
  * Possible return values: 'free', 'occupied', 'free-soon', 'occupied-soon', or null if no data.
  */
@@ -198,7 +233,6 @@ export function getClassroomStatusNow(classroomId) {
 
   const now = new Date();
   const dateKey = formatDateYYYYMMDD(now);
-  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
   // Find today's data
   const dayData = classroomsData.find(day => day.date === dateKey);
@@ -214,29 +248,44 @@ export function getClassroomStatusNow(classroomId) {
 
   if (!classroom) return null;
 
-  const occupancy = classroom.occupancy ?? [];
-  const isOccupiedNow = occupancy.some(slot => currentTime >= slot.inizio && currentTime < slot.fine);
+  return computeClassroomStatus(classroom.occupancy ?? [], now);
+}
 
-  const thirtyMinsLater = new Date(now.getTime() + 30 * 60 * 1000);
-  const thirtyMinsLaterTime = `${String(thirtyMinsLater.getHours()).padStart(2, '0')}:${String(thirtyMinsLater.getMinutes()).padStart(2, '0')}`;
+/**
+ * Builds the data for the "zoom out" building overview: every building in the
+ * given campus on the given date, each with a per-status classroom count.
+ *
+ * The status is computed relative to an instant: NOW when `date` is today,
+ * otherwise `date` at `refTime` ("HH:MM", the selected query start) so
+ * "free soon" / "occupied soon" still mean something on a future day.
+ *
+ * Returns [{ building, counts: {free, 'free-soon', 'occupied-soon', occupied} }]
+ * in the campus's building order.
+ */
+export function getCampusBuildingsOverview(campusId, date, refTime) {
+  const formattedDate = formatDateYYYYMMDD(new Date(date));
+  const dayData = classroomsData.find(day => day.date === formattedDate);
+  if (!dayData) return [];
 
-  if (isOccupiedNow) {
-    // Check if it will be free within 30 mins
-    const currentSlot = occupancy.find(slot => currentTime >= slot.inizio && currentTime < slot.fine);
-    // If current slot ends within 30 mins AND no other slot starts before that 30 min window ends
-    if (currentSlot.fine < thirtyMinsLaterTime) {
-      const nextOccupancy = occupancy.some(slot => slot.inizio >= currentSlot.fine && slot.inizio < thirtyMinsLaterTime);
-      if (!nextOccupancy) {
-        return 'free-soon';
-      }
-    }
-    return 'occupied';
+  const campusData = dayData.campuses.find(c => c.id === campusId);
+  if (!campusData) return [];
+
+  const now = new Date();
+  const isToday = formattedDate === formatDateYYYYMMDD(now);
+  let refDate;
+  if (isToday) {
+    refDate = now;
   } else {
-    // Currently free. Check if it will be occupied within 30 mins.
-    const nextOccupancy = occupancy.some(slot => slot.inizio > currentTime && slot.inizio < thirtyMinsLaterTime);
-    if (nextOccupancy) {
-      return 'occupied-soon';
-    }
-    return 'free';
+    const [h, m] = String(refTime ?? '08:00').split(':').map(Number);
+    refDate = new Date(date);
+    refDate.setHours(h || 0, m || 0, 0, 0);
   }
+
+  return campusData.buildings.map(building => {
+    const counts = { 'free': 0, 'free-soon': 0, 'occupied-soon': 0, 'occupied': 0 };
+    for (const room of building.classrooms ?? []) {
+      counts[computeClassroomStatus(room.occupancy ?? [], refDate)]++;
+    }
+    return { building, counts };
+  });
 }

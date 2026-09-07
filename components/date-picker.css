@@ -44,7 +44,6 @@
 
   margin-top: 2rem;
 
-  cursor: pointer;
   user-select: none;
 
   opacity: 0; /* Hidden until JS populates dates */
@@ -245,12 +244,11 @@
   /* above .date-element-container.active's z-index: 1 */
   pointer-events: auto;
   touch-action: none;
-  cursor: grab;
+  /* Native-app feel: no grab hand — the indicator communicates its draggability
+     through motion/haptics, like a native picker wheel (see the cursor rule in
+     style.css). */
+  cursor: default;
   will-change: transform;
-}
-
-.date-indicator-hit:active {
-  cursor: grabbing;
 }
 
 @keyframes date-indicator-shake {
@@ -294,7 +292,6 @@
   font-size: var(--text-72);
   font-weight: 800;
   white-space: nowrap;
-  cursor: pointer;
   box-shadow: var(--glow-accent);
   transform-origin: bottom center;
 

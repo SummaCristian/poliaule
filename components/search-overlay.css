@@ -1,0 +1,390 @@
+/* ── Search overlay ─────────────────────────────────────────────────────
+   Opened by the bottom-nav search FAB. No dim/blur backdrop — the panel
+   (search bar + results) just floats over the current tab. The full-screen
+   layer is kept but transparent, purely as the tap-outside-to-dismiss hit
+   area. Also dismissed by its own close button or Esc.
+
+   Mobile: the search bar is pinned to the bottom, just above the on-screen
+   keyboard (visualViewport-tracked), and results stack upward above it.
+   Desktop: the panel is centred, ~27% down from the top. */
+
+.search-overlay-backdrop[hidden] {
+  display: none;
+}
+
+.search-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 850;
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.search-overlay-backdrop.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body.search-overlay-open {
+  overflow: hidden;
+}
+
+/* No scrim element — instead the tab behind just recedes. The class is toggled
+   inside the open/close view-transition callback, so the root cross-fade
+   animates this; the transition is the no-VT fallback. */
+.tab-content.visible,
+.footer {
+  transition: opacity 0.2s ease;
+}
+
+body.search-overlay-open .tab-content.visible,
+body.search-overlay-open .footer {
+  opacity: 0.4;
+}
+
+/* Mobile: the whole pill nav steps aside while the overlay is open — the
+   search bar takes its spot at the bottom. (Desktop keeps the side rail —
+   see the 600px block, where only the FAB is hidden.) */
+body.search-overlay-open .bn-wrapper {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+/* backdrop-filter can't survive a view-transition snapshot in Safari — it
+   flashes unblurred or samples the wrong backdrop mid-animation. Drop it on
+   every translucent surface involved for the duration of the open/close VT;
+   search-overlay.js sets html.search-vt only for that window. The header's
+   fade-overlay gradient keeps it legible without the blur. */
+html.search-vt .header-blur-layer,
+html.search-vt .bn-tabbar,
+html.search-vt .bn-search-btn,
+html.search-vt .search-overlay-header .search-bar-wrapper,
+html.search-vt .search-overlay-close,
+html.search-vt .search-overlay-results {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* The FAB's persistent `will-change: transform` keeps Safari compositing its
+   backdrop-filter on the pre-transform layer even after the blur is dropped —
+   a blurred ghost trailing the morph. Release the hint for the transition. */
+html.search-vt .bn-search-btn {
+  will-change: auto;
+}
+
+/* ── Panel ──────────────────────────────────────────────────────────── */
+
+.search-overlay-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  /* Sit just above the on-screen keyboard. --search-kb is the keyboard height
+     from visualViewport (search-overlay.js); 0 when it's closed, leaving the
+     bar the same 16px clearance the pill nav has. Grows upward as results fill
+     in (column-reverse). */
+  bottom: calc(var(--search-kb, 0px) + 16px + env(safe-area-inset-bottom, 0px));
+
+  width: min(100% - 2rem, 640px);
+  margin-inline: auto;
+  max-height: calc(100dvh - var(--search-kb, 0px) - 32px - env(safe-area-inset-top, 0px));
+
+  display: flex;
+  flex-direction: column-reverse; /* search bar at the bottom, results above */
+  gap: 0.85rem;
+  min-height: 0;
+}
+
+/* ── Header row: search bar + close button ──────────────────────────── */
+
+.search-overlay-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+/* The moved-in search bar drops its old centring constraints, and swaps its
+   flat card background for the same glass material as the header buttons /
+   pill nav. Press feedback + lit hover + swipe-deform come from the shared
+   .liquid-glass rules (the class is on the element in index.html). */
+.search-overlay-header .search-bar-wrapper {
+  margin: 0;
+  max-width: none;
+  flex: 1;
+
+  background: var(--glass-tint);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+  border-color: transparent;
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline),
+    var(--glass-highlight),
+    0 4px 40px 0 var(--glass-shadow-color);
+}
+
+.search-overlay-header .search-bar-wrapper:focus-within {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--text-color-accent) 22%, transparent),
+    0 0 0 0.1px var(--glass-outline),
+    var(--glass-highlight),
+    0 4px 40px 0 var(--glass-shadow-color);
+}
+
+/* .liquid-glass sets user-select:none on the surface — the field itself must
+   stay typable and selectable. */
+.search-overlay-header .search-input {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.search-overlay-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  color: var(--text-color-secondary);
+
+  background: var(--glass-tint);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline),
+    var(--glass-highlight),
+    0 4px 40px 0 var(--glass-shadow-color);
+}
+
+.search-overlay-close .material-symbols-outlined {
+  font-size: var(--text-125) !important;
+}
+
+/* ── Results ────────────────────────────────────────────────────────── */
+
+/* Results live in their own glass container rather than floating loose on
+   the page. */
+.search-overlay-results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+
+  padding: 1.75rem; /* 28px all around */
+  border-radius: var(--radius-xl);
+  background: var(--glass-tint);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline),
+    var(--glass-highlight),
+    0 4px 40px 0 var(--glass-shadow-color);
+}
+
+/* Nothing to show yet — collapse the container so it isn't an empty glass slab. */
+.search-overlay-results:empty {
+  display: none;
+}
+
+.search-overlay-results .search-grid {
+  padding: 0;
+}
+
+/* ── Section labels (Classrooms / Lessons & exams) ─────────────────── */
+
+.search-section-label {
+  font-size: var(--text-75);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text-color-primary) 45%, transparent);
+  padding: 0 0.25rem 0.5rem;
+}
+
+.search-section-label:not(:first-child) {
+  margin-top: 1.25rem;
+}
+
+/* ── Lesson / exam result cards ────────────────────────────────────── */
+
+.search-event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.search-event-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  padding: 1rem;
+  border-radius: var(--radius-lg, 1rem);
+  background-color: var(--background-color-secondary);
+  border: 1px solid color-mix(in srgb, var(--text-color-primary) 6%, transparent);
+  box-shadow: var(--shadow);
+}
+
+.search-event-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.search-event-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-95);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-color-primary);
+}
+
+/* .timeline-popover-meta / .timeline-popover-badge come from
+   classroom-detail.css (always loaded) — reused verbatim here. */
+
+.search-event-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+
+.search-event-session {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  text-align: start;
+
+  padding: 0.5rem 0.7rem;
+  border: none;
+  border-radius: var(--radius-md, 0.75rem);
+  background: color-mix(in srgb, var(--text-color-primary) 5%, transparent);
+}
+
+.search-event-session .ses-when {
+  font-size: var(--text-80);
+  font-weight: 700;
+  color: var(--text-color-accent);
+}
+
+.search-event-session .ses-where {
+  font-size: var(--text-75);
+  font-weight: 600;
+}
+
+.search-event-more {
+  font-size: var(--text-72);
+  font-weight: 600;
+  padding: 0.15rem 0.7rem 0;
+}
+
+/* The classroom cards run large for this context on a phone — scale the grid
+   down a touch. (zoom keeps layout/hit-testing correct, unlike transform.) */
+@media (max-width: 599px) {
+  .search-overlay-results .search-grid--classroom {
+    zoom: 0.72;
+  }
+
+  /* Hide the app header on mobile only once the results box has actually
+     grown up behind it (toggled from search-overlay.js). */
+  body.search-overlay-open.search-covers-header .header {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  body.search-overlay-open .header {
+    transition: opacity 0.2s ease;
+  }
+}
+
+/* ── FAB ⇄ search-bar morph (View Transitions) ─────────────────────── */
+
+@supports (view-transition-name: none) {
+  .search-overlay-backdrop {
+    transition: none; /* the VT root cross-fade carries the panel in/out */
+  }
+
+  /* Only the box (position + size + border-radius) morphs — the two snapshots
+     inside must NOT be stretched to fill it, or the small round FAB image
+     balloons to the full search-bar size as the group grows. Letterbox them
+     to their natural aspect, anchored left where the magnifier sits, and
+     cross-fade: FAB out quickly, bar in over the whole morph. */
+  ::view-transition-group(search-fab-morph) {
+    animation-duration: 0.34s;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 10; /* ride above the root cross-fade */
+    overflow: clip;
+  }
+
+  ::view-transition-old(search-fab-morph),
+  ::view-transition-new(search-fab-morph) {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: left center;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  ::view-transition-old(search-fab-morph) {
+    animation-name: sfm-fade-out;
+    animation-duration: 0.16s;
+  }
+
+  ::view-transition-new(search-fab-morph) {
+    animation-name: sfm-fade-in;
+    animation-duration: 0.34s;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.28s;
+  }
+}
+
+@keyframes sfm-fade-out { to { opacity: 0; } }
+@keyframes sfm-fade-in { from { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(search-fab-morph),
+  ::view-transition-old(search-fab-morph),
+  ::view-transition-new(search-fab-morph),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
+/* ── Desktop: centred, ~27% from the top ───────────────────────────── */
+
+@media (min-width: 600px) {
+  .search-overlay-panel {
+    left: 50%;
+    right: auto;
+    top: 27vh;
+    bottom: auto;
+    transform: translateX(-50%);
+    margin-inline: 0;
+
+    max-height: 65vh;
+    flex-direction: column; /* search bar on top, results below */
+  }
+
+  /* The side rail stays put; only the FAB (which morphs into the search bar)
+     is taken out. */
+  body.search-overlay-open .bn-wrapper {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  body.search-overlay-open #bn-search-btn {
+    opacity: 0;
+    pointer-events: none;
+  }
+}

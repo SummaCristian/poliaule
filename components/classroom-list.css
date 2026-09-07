@@ -35,7 +35,6 @@
   font-family: "Nunito", -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: var(--text-80);
   font-weight: 700;
-  cursor: pointer;
 
   transition: background 0.2s ease, opacity 0.2s ease;
 }
@@ -112,18 +111,29 @@
 
 .building-section {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  /* Fit as many columns as fit at an 8.5rem card floor, and fall back to a
+     single column when even one 8.5rem card won't fit (very small window /
+     split screen). Two parts matter:
+       - 8.5rem, not the old 9.5rem: the results box at a 360px viewport is
+         only ~296px wide (tab + list + container padding), and two 9.5rem
+         tracks + the gap need ~316px — that 20px is why a stock 360px Android
+         phone dropped to one giant column.
+       - min(100%, 8.5rem): when the row itself is narrower than 8.5rem the
+         floor collapses to 100% instead of overflowing, so the fallback is a
+         clean single column rather than a clipped card. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8.5rem), 1fr));
   gap: 0.75rem;
 }
 
 .building-section-header {
   grid-column: 1 / -1;
 
-  /* Clears the app header's blur bleed (.header-blur-layers runs ~2rem below
-     the header box, uncounted by --header-height) so the glass title pill
-     isn't softened by it. */
+  /* Parks directly beneath the sticky picker bar (mobile) — its live height
+     comes from --picker-bar-height (script.js); the + 1.5rem matches the
+     picker bar's own offset below the app header. On desktop the picker bar
+     isn't sticky — see the 600px override. */
   position: sticky;
-  top: calc(var(--header-height, 84px) + 2rem);
+  top: calc(var(--header-height, 84px) + 2.25rem + var(--picker-bar-height, 0px) + 0.5rem);
   z-index: 2;
 
   display: flex;
@@ -141,13 +151,21 @@
   animation: card-appear 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
+@media (min-width: 600px) {
+  /* Picker form is a static grid cell on desktop, not a sticky bar — drop the
+     --picker-bar-height offset and stick under the app header alone. */
+  .building-section-header {
+    top: calc(var(--header-height, 84px) + 1.25rem);
+  }
+}
+
 @media (min-width: 1100px) {
   /* No mask on the scroll panel here: a `mask` on an ancestor disables
      `backdrop-filter` on descendants in Chromium, which kills the glass
      title pill's blur. The app header's fade overlay already covers the
      panel's top, so the hard overflow edge isn't visible anyway. */
   .building-section-header {
-    top: 0.5rem;
+    top: 1rem;
   }
 }
 
@@ -161,6 +179,13 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 0;
+
+  /* It's a <button> now (opens the building overview) — strip the UA chrome. */
+  appearance: none;
+  border: none;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
 
   padding: 0.5rem 1.05rem;
   border-radius: var(--radius-pill);
@@ -203,7 +228,7 @@
 }
 
 .building-name {
-  font-size: 18px;
+  font-size: var(--text-110);
   font-weight: 700;
   line-height: 1.2;
   color: rgba(0, 0, 0, 0.5);
@@ -211,7 +236,7 @@
 }
 
 .building-alt-name {
-  font-size: 12px;
+  font-size: var(--text-75);
   font-weight: 600;
   line-height: 1.1;
   color: rgba(0, 0, 0, 0.5);
@@ -277,12 +302,15 @@
 .classroom-card {
   position: relative;
   aspect-ratio: 154 / 196;
+  /* Belt-and-braces cap: if a card ever ends up in a very wide single track
+     (some fallback layout, an unexpected container width), the portrait
+     aspect-ratio won't blow it up to a full-screen tile. */
+  max-width: 24rem;
   text-align: start;
 
   padding: 0;
   border-radius: var(--radius-lg);
 
-  cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 

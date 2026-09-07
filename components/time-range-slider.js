@@ -65,6 +65,14 @@ function buildSlider(fromInput, toInput) {
   const wrapper    = document.createElement('div');
   wrapper.className = 'trs-wrapper';
 
+  // Title row — same icon + word treatment as the campus / date picker panels.
+  const title = document.createElement('div');
+  title.className = 'trs-title';
+  title.setAttribute('aria-hidden', 'true');
+  title.innerHTML =
+    `<i class="hgi-stroke hgi-clock-01 trs-title-icon"></i>` +
+    `<span class="trs-title-text" data-i18n="timepicker.timeLabel">${t('timepicker.timeLabel')}</span>`;
+
   const barWrapper = document.createElement('div');
   barWrapper.className = 'trs-bar-wrapper';
 
@@ -113,7 +121,7 @@ function buildSlider(fromInput, toInput) {
 
   bar.append(range, fromHandle, toHandle);
   barWrapper.append(fromBadge, toBadge, bar, ticks);
-  wrapper.append(barWrapper);
+  wrapper.append(title, barWrapper);
 
   // ── Geometry helpers ──────────────────────────────────────────────────────
 
@@ -505,7 +513,13 @@ export function initTimeRangeSlider() {
   if (!container) return;
 
   const slider = buildSlider(fromInput, toInput);
-  container.appendChild(slider);
+
+  // When wrapped in <time-range-chip-picker>, the slider lives inside that
+  // component's morph popup; otherwise it renders inline in the container.
+  const chip = document.querySelector('time-range-chip-picker');
+  const mount = chip?.getMountPoint?.() ?? container;
+  mount.appendChild(slider);
+  chip?.setSlider?.(slider);
 
   // Pre-register source rects so switchPicker has valid positions for both
   // cards even before the user taps either badge.

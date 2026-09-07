@@ -73,7 +73,6 @@ mark {
   border-radius: 50%;
   width: 1.5rem;
   height: 1.5rem;
-  cursor: pointer;
   padding: 0;
   color: color-mix(in srgb, var(--text-color-primary) 55%, transparent);
 
@@ -151,7 +150,6 @@ mark {
   font-size: var(--text-85);
   font-weight: 700;
   color: var(--text-color-accent);
-  cursor: pointer;
 
   transition: background 0.15s ease;
 }
@@ -249,7 +247,6 @@ mark {
   border: none;
   border-radius: var(--radius-sm);
   background: none;
-  cursor: pointer;
   font-family: "Nunito", -apple-system, BlinkMacSystemFont, sans-serif;
   text-align: start;
 
@@ -375,7 +372,6 @@ mark {
 }
 
 .search-card:is(button) {
-  cursor: pointer;
 }
 
 .search-card:is(button):hover {
@@ -405,7 +401,6 @@ mark {
   border: none;
   border-radius: var(--radius-sm);
   color: var(--text-color-accent);
-  cursor: pointer;
 
   transition: background 0.15s ease, transform 0.1s ease;
 }

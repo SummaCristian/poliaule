@@ -24,7 +24,10 @@ const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
 // How hard the element scales down the instant it's touched (before any drag).
 const PRESS_SCALE = 0.94;
 // Pointer travel (px) before we treat the gesture as a drag rather than a tap.
-const DRAG_THRESHOLD = 3;
+// Below this a release still fires the control's click; above it the click is
+// swallowed as a deform gesture. 3px was under a real finger's tap jitter, so
+// ordinary taps on big surfaces (the building name pills) were being eaten.
+const DRAG_THRESHOLD = 8;
 
 function beginPress(el, e) {
   // Ignore secondary mouse buttons; let real clicks/taps through untouched.
@@ -124,11 +127,24 @@ function beginPress(el, e) {
 
 // Opt a shadow-DOM element in explicitly (delegation can't see across the
 // shadow boundary). Safe to call more than once.
-export function attachLiquidGlass(el) {
+//
+// `opts.from` — a selector: only a pointerdown that lands inside a matching
+//   descendant starts the deform (e.g. a panel that deforms only when grabbed
+//   by its title bar, so its scrollable / draggable body is left alone).
+// `opts.exclude` — the inverse: a pointerdown inside a matching descendant is
+//   ignored.
+// The light-DOM delegated path reads the same two as `data-lg-from` /
+// `data-lg-exclude` attributes.
+export function attachLiquidGlass(el, opts = {}) {
   if (!el || el._liquidGlassBound) return;
   el._liquidGlassBound = true;
   el.classList.add('liquid-glass');
-  el.addEventListener('pointerdown', (e) => beginPress(el, e));
+  const { from, exclude } = opts;
+  el.addEventListener('pointerdown', (e) => {
+    if (from && !e.target.closest(from)) return;
+    if (exclude && e.target.closest(exclude)) return;
+    beginPress(el, e);
+  });
 }
 
 // Interactive elements that can sit *inside* a glass surface (a link in a
@@ -148,6 +164,11 @@ export function initLiquidGlass() {
     if (!el) return;
     const inner = e.target.closest(INNER_CONTROL);
     if (inner && inner !== el && el.contains(inner)) return;
+    // Same `from` / `exclude` gating as attachLiquidGlass(), via attributes.
+    const from = el.dataset?.lgFrom;
+    if (from && !e.target.closest(from)) return;
+    const exclude = el.dataset?.lgExclude;
+    if (exclude && e.target.closest(exclude)) return;
     beginPress(el, e);
   });
 }

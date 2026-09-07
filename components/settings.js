@@ -225,6 +225,13 @@ function closeSettings() {
   });
 }
 
+// Toggle entry point for the keyboard shortcut (Ctrl/Cmd + ,). openSettings and
+// closeSettings both no-op mid-animation, so a rapid double-press is harmless.
+export function toggleSettings() {
+  if (isOpen) closeSettings();
+  else openSettings();
+}
+
 // ── Startup campus restorers ──────────────────────────────────────────────────
 
 // Called from script.js after setupCampusPicker() to apply the saved preferred campus.

@@ -332,7 +332,6 @@ body.detail-open .tab-content * {
   font-weight: 700;
   margin: 0;
   color: var(--text-color-primary);
-  cursor: pointer;
   user-select: none;
 }
 
@@ -382,7 +381,6 @@ body.detail-open .tab-content * {
   font-size: var(--text-90);
   font-weight: 600;
   font-family: inherit;
-  cursor: pointer;
   transition: background 0.15s ease;
   
   /* Ensure the button and its content adapt their internal rendering to the theme */
@@ -804,7 +802,6 @@ body.detail-open .tab-content * {
   opacity: 0.85;
   box-shadow: 0 1px 2px rgba(0,0,0,0.1);
   border: 1px solid color-mix(in srgb, var(--color-status-busy) 20%, black);
-  cursor: pointer;
   transition: opacity 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -1142,7 +1139,6 @@ body.detail-open .tab-content * {
     font-size: var(--text-72);
     font-weight: 800;
     white-space: nowrap;
-    cursor: pointer;
     box-shadow: var(--glow-accent);
     transform-origin: bottom center;
 

@@ -1,6 +1,6 @@
 import { t, onLanguageSwitch } from './i18n.js';
 import { haptics, defaultPatterns } from './components/haptics.js';
-import { getClassroomStatusNow } from './available-rooms-script.js';
+import { getClassroomStatusNow, classroomsData as occupancyDays } from './available-rooms-script.js';
 import { buildCardForClassroom } from './components/classroom-list.js';
 import { getApiBase } from './config.js';
 
@@ -12,8 +12,6 @@ let searchIndex = null;
 
 // Hierarchy navigation state
 let hierarchyState = { level: 0, campus: null, building: null };
-let isSearchActive = false;
-let searchDebounce = null;
 let activeDropdown = null;
 
 // ---------- DATA ----------
@@ -22,6 +20,40 @@ async function loadData() {
   if (classroomsData) return;
   const res = await fetch(`${getApiBase()}/v1/classrooms`);
   classroomsData = await res.json();
+}
+
+// Text search — the search bar itself lives in the search overlay
+// (components/search-overlay.js); this module just owns the data + card
+// builders it drives. `ensureSearchData()` is idempotent and safe to call
+// before the Campus tab has finished initialising.
+export async function ensureSearchData() {
+  await loadData();
+  if (!searchIndex) searchIndex = buildSearchIndex();
+}
+
+export function runClassroomSearch(query) {
+  if (!classroomsData) return { visible: [], total: 0, capped: false };
+  if (!searchIndex) searchIndex = buildSearchIndex();
+  const q = query.trim().toLowerCase();
+  const qDotted = q.replace(/\s+/g, '.');
+  const results = searchIndex.filter(room =>
+    room.name.toLowerCase().includes(q) ||
+    room.name.toLowerCase().includes(qDotted) ||
+    room.buildingName.toLowerCase().includes(q) ||
+    (room.buildingAltName && room.buildingAltName.toLowerCase().includes(q)) ||
+    room.campusName.toLowerCase().includes(q)
+  );
+  const capped = results.length > SEARCH_MAX_RESULTS;
+  return { visible: capped ? results.slice(0, SEARCH_MAX_RESULTS) : results, total: results.length, capped };
+}
+
+// Results span multiple campuses, so fold the campus name into the building
+// line (the card only has room for one line of building/location context).
+export function buildSearchResultCard(room, query = '') {
+  return buildClassroomCard(room, {
+    name: room.buildingName,
+    altName: [room.buildingAltName, room.campusName].filter(Boolean).join(' · '),
+  }, query.trim());
 }
 
 function buildSearchIndex() {
@@ -34,6 +66,126 @@ function buildSearchIndex() {
     }
   }
   return index;
+}
+
+// ---------- OCCUPATION (lesson / exam) SEARCH ----------
+//
+// Searches the loaded occupancy data (available-rooms-script.js, up to 7 days)
+// for slots whose course name, code, section, professors, or raw string match
+// the query. Identical events (same course/code/professors, recurring across
+// days and rooms) are folded into one group with a list of sessions.
+
+export const OCC_MAX_GROUPS = 24;
+const OCC_MAX_SESSIONS = 6;
+
+let occIndex = null;
+let occIndexDayCount = -1;
+
+export function hasOccupationData() {
+  return occupancyDays.length > 0;
+}
+
+// Occupancy JSON stores the day as "YYYYMMDD"; normalise to ISO so Date() and
+// Intl can parse it.
+function isoDate(d) {
+  const s = String(d ?? '');
+  return /^\d{8}$/.test(s) ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : s;
+}
+
+function buildOccupationIndex() {
+  const rows = [];
+  for (const day of occupancyDays) {
+    const date = isoDate(day.date);
+    for (const campus of day.campuses ?? []) {
+      for (const building of campus.buildings ?? []) {
+        for (const room of building.classrooms ?? []) {
+          for (const slot of room.occupancy ?? []) {
+            if (!slot.inizio || !slot.fine) continue;
+            const professors = Array.isArray(slot.professors) ? slot.professors : [];
+            const title = slot.course ?? slot.raw ?? slot.name ?? '';
+            rows.push({
+              date,
+              inizio: slot.inizio,
+              fine: slot.fine,
+              category: slot.category ?? null,
+              isExam: slot.category === 'EXAM',
+              title,
+              code: slot.code ?? null,
+              section: slot.section ?? null,
+              professors,
+              roomId: room.id,
+              roomName: room.name,
+              buildingName: building.name,
+              buildingAltName: building.altName,
+              campusName: campus.name,
+              haystack: [
+                title,
+                slot.code != null ? String(slot.code) : '',
+                slot.section ?? '',
+                professors.join(' '),
+                slot.raw ?? '',
+                slot.name ?? '',
+              ].join('  ').toLowerCase(),
+            });
+          }
+        }
+      }
+    }
+  }
+  return rows;
+}
+
+function ensureOccIndex() {
+  if (!occIndex || occIndexDayCount !== occupancyDays.length) {
+    occIndex = buildOccupationIndex();
+    occIndexDayCount = occupancyDays.length;
+  }
+}
+
+export function runOccupationSearch(query) {
+  ensureOccIndex();
+  const q = query.trim().toLowerCase();
+  if (!q || occIndex.length === 0) return { groups: [], total: 0, capped: false, maxSessions: OCC_MAX_SESSIONS };
+
+  // Codes are stored as ints, so a leading zero the user typed ("061182") is
+  // gone from the haystack ("61182") — match on both.
+  const qAlt = q.replace(/^0+/, '');
+  const matched = occIndex.filter(r =>
+    r.haystack.includes(q) || (qAlt && qAlt !== q && r.haystack.includes(qAlt)));
+
+  const groups = new Map();
+  for (const r of matched) {
+    const key = [r.category, r.code, r.title, r.section, r.professors.join(',')].join('|').toLowerCase();
+    let g = groups.get(key);
+    if (!g) {
+      g = {
+        title: r.title, code: r.code, section: r.section,
+        professors: r.professors, isExam: r.isExam, sessions: [],
+      };
+      groups.set(key, g);
+    }
+    g.sessions.push({
+      date: r.date, inizio: r.inizio, fine: r.fine,
+      roomId: r.roomId, roomName: r.roomName,
+      buildingName: r.buildingName, buildingAltName: r.buildingAltName, campusName: r.campusName,
+    });
+  }
+
+  const list = [...groups.values()];
+  for (const g of list) {
+    g.sessions.sort((a, b) => (a.date + a.inizio).localeCompare(b.date + b.inizio));
+    g.sessionCount = g.sessions.length;
+  }
+  list.sort((a, b) =>
+    (a.sessions[0].date + a.sessions[0].inizio).localeCompare(b.sessions[0].date + b.sessions[0].inizio));
+
+  const capped = list.length > OCC_MAX_GROUPS;
+  return {
+    groups: capped ? list.slice(0, OCC_MAX_GROUPS) : list,
+    total: list.length,
+    capped,
+    maxSessions: OCC_MAX_SESSIONS,
+  };
 }
 
 // ---------- TEXT HIGHLIGHT ----------
@@ -379,65 +531,7 @@ function renderClassrooms(campus, building) {
   });
 }
 
-const SEARCH_MAX_RESULTS = 40;
-
-function renderSearchResults(query) {
-  closeActiveDropdown();
-  setLevelHeader('meeting_room', 'search.headerClassrooms');
-  if (!searchIndex) searchIndex = buildSearchIndex();
-
-  const q = query.trim().toLowerCase();
-  const qDotted = q.replace(/\s+/g, '.');
-  const results = searchIndex.filter(room =>
-    room.name.toLowerCase().includes(q) ||
-    room.name.toLowerCase().includes(qDotted) ||
-    room.buildingName.toLowerCase().includes(q) ||
-    (room.buildingAltName && room.buildingAltName.toLowerCase().includes(q)) ||
-    room.campusName.toLowerCase().includes(q)
-  );
-
-  const container = document.getElementById('search-results-container');
-  container.innerHTML = '';
-
-  if (results.length === 0) {
-    const state = document.createElement('div');
-    state.className = 'search-empty-state';
-    state.innerHTML = `
-      <span class="material-symbols-outlined empty-container-icon">search_off</span>
-      <p class="empty-container-title">${t('search.emptyTitle')}</p>
-      <p class="empty-container-subtitle">${t('search.emptySubtitle')}</p>
-    `;
-    container.appendChild(state);
-    return;
-  }
-
-  const capped = results.length > SEARCH_MAX_RESULTS;
-  const visible = capped ? results.slice(0, SEARCH_MAX_RESULTS) : results;
-
-  const grid = document.createElement('div');
-  grid.className = 'search-grid search-grid--classroom';
-  // Results span multiple campuses, so fold the campus name into the building
-  // line (the card only has room for one line of building/location context).
-  visible.forEach(room => grid.appendChild(buildClassroomCard(room, {
-    name: room.buildingName,
-    altName: [room.buildingAltName, room.campusName].filter(Boolean).join(' · '),
-  }, query.trim())));
-
-  container.appendChild(grid);
-
-  if (capped) {
-    const notice = document.createElement('p');
-    notice.className = 'search-too-many-notice';
-    notice.textContent = t('search.tooManyResults').replace('{n}', SEARCH_MAX_RESULTS);
-    container.appendChild(notice);
-  }
-
-  requestAnimationFrame(() => {
-    setTimeout(() => {
-      grid.classList.add('appeared');
-    }, 400);
-  });
-}
+export const SEARCH_MAX_RESULTS = 40;
 
 // Jump straight to one building's classroom list — used by the "Available"
 // tab's building-header button. Matches by id when present, else by name.
@@ -450,18 +544,11 @@ export function navigateToBuilding(campusId, buildingId, buildingName) {
     (buildingId != null && b.id === buildingId) || b.name === buildingName);
   if (!building) return false;
 
-  const searchInput = document.getElementById('classroom-search-input');
-  if (searchInput && searchInput.value) {
-    searchInput.value = '';
-    isSearchActive = false;
-  }
-
   renderClassrooms(campus, building);
   return true;
 }
 
 function restoreHierarchy() {
-  isSearchActive = false;
   const { level, campus, building } = hierarchyState;
   if (level === 0) renderCampuses();
   else if (level === 1) renderBuildings(campus);
@@ -474,36 +561,5 @@ export async function initSearchTab() {
   await loadData();
   renderCampuses();
 
-  const searchInput = document.getElementById('classroom-search-input');
-
-  document.getElementById('classroom-search-clear').addEventListener('click', () => {
-    haptics.trigger(defaultPatterns.light);
-    searchInput.value = '';
-    searchInput.dispatchEvent(new Event('input'));
-    searchInput.focus();
-  });
-
-  searchInput.addEventListener('input', () => {
-    clearTimeout(searchDebounce);
-    const query = searchInput.value;
-
-    if (!query.trim()) {
-      if (isSearchActive) restoreHierarchy();
-      return;
-    }
-
-    isSearchActive = true;
-    closeActiveDropdown();
-    document.getElementById('search-breadcrumb').classList.add('hidden');
-    searchDebounce = setTimeout(() => renderSearchResults(query), 200);
-  });
-
-  onLanguageSwitch(() => {
-    const query = searchInput.value;
-    if (isSearchActive && query.trim()) {
-      renderSearchResults(query);
-    } else {
-      restoreHierarchy();
-    }
-  });
+  onLanguageSwitch(() => restoreHierarchy());
 }

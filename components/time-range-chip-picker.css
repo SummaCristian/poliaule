@@ -1,0 +1,406 @@
+/* ── Time range chip picker ───────────────────────────────────────────────
+   A compact wrapper around the drag-based time range slider
+   (components/time-range-slider.js). Collapsed, it's a glass pill that mimics
+   <campus-chip-picker> / <date-chip-picker> one-to-one: HugeIcons glyph +
+   stacked label/value box + chevron. Tapped, the pill morphs into a popup that
+   holds the untouched slider — same shell technique as campus-picker.css /
+   date-chip-picker.css: a fixed element whose box
+   (top/left/width/height/border-radius) transitions between the trigger's rect
+   and the panel's. time-range-chip-picker.js drives the geometry. */
+
+/* Sized to its pill by the flanking .picker-row flex container. */
+time-range-chip-picker {
+  display: block;
+  min-width: 0;
+}
+
+/* The native <input type="time"> fields stay here (inside the <form>) as the
+   submittable data model; only the visual slider is relocated into the popup. */
+time-range-chip-picker .time-pickers-container {
+  display: none;
+}
+
+/* While loading: keep the glass pill and the "TIME" label; shimmer only the
+   value line. */
+time-range-chip-picker[data-loading] .trc-trigger__value {
+  display: none;
+}
+
+time-range-chip-picker:not([data-loading]) .trc-trigger__skeleton {
+  display: none;
+}
+
+.trc-trigger__skeleton {
+  display: block;
+  width: 5rem;
+  height: 14px;
+  border-radius: 5px;
+  background: linear-gradient(90deg,
+      color-mix(in srgb, var(--text-color-primary) 6%, transparent) 25%,
+      color-mix(in srgb, var(--text-color-primary) 12%, transparent) 50%,
+      color-mix(in srgb, var(--text-color-primary) 6%, transparent) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s linear infinite;
+}
+
+/* ── Collapsed pill — glass button, hugs its content (mirrors .dcp-trigger) */
+.trc-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--radius-pill);
+
+  font-family: "Nunito", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  text-align: left;
+  color: var(--text-color-primary);
+  -webkit-tap-highlight-color: transparent;
+
+  background: var(--glass-tint);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  backdrop-filter: blur(var(--glass-blur-sm));
+
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline),
+    var(--glass-highlight),
+    0 4px 40px 0 var(--glass-shadow-color);
+
+  transition: box-shadow 0.2s ease, background 0.2s ease;
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .trc-trigger,
+  .trc-popup {
+    background: color-mix(in srgb, var(--background-color-secondary) 95%, black);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .trc-trigger,
+    .trc-popup {
+      background: color-mix(in srgb, var(--background-color-secondary) 95%, white);
+    }
+  }
+}
+
+/* Outside 0.5px gradient stroke — same recipe as .dcp-trigger::after. */
+.trc-trigger::after {
+  content: "";
+  position: absolute;
+  inset: -0.5px;
+  border-radius: inherit;
+  padding: 0.5px;
+  background: var(--glass-stroke-gradient);
+  opacity: var(--glass-stroke-opacity);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.trc-trigger[aria-expanded="true"] {
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline),
+    var(--glass-highlight),
+    0 4px 40px 0 var(--glass-shadow-color),
+    0 0 0 3px color-mix(in srgb, var(--text-color-accent) 10%, transparent);
+}
+
+.trc-trigger:focus-visible {
+  outline: 2px solid var(--text-color-accent);
+  outline-offset: 2px;
+}
+
+.trc-trigger__icon,
+.trc-trigger__chevron {
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.trc-trigger__icon {
+  color: color-mix(in srgb, var(--text-color-primary) 75%, transparent);
+}
+
+.trc-trigger__chevron {
+  color: color-mix(in srgb, var(--text-color-primary) 50%, transparent);
+  transition: transform 0.2s ease;
+}
+
+.trc-trigger[aria-expanded="true"] .trc-trigger__chevron {
+  transform: rotate(180deg);
+}
+
+/* Label ("TIME") stacked over the range — 1:1 with .dcp-trigger__box. */
+.trc-trigger__box {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.trc-trigger__label {
+  font-size: 8px;
+  line-height: 8px;
+  font-weight: 400;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text-color-primary) 50%, transparent);
+}
+
+/* "9:15 – 11:15" — bold times, lighter dash. */
+.trc-trigger__value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 14px;
+  line-height: 14px;
+  font-weight: 700;
+  color: var(--text-color-primary);
+}
+
+.trc-trigger__value-sep {
+  font-weight: 400;
+  color: color-mix(in srgb, var(--text-color-primary) 45%, transparent);
+}
+
+/* Hide the pill while it's morphed into the panel. */
+time-range-chip-picker.trc-anim .trc-trigger {
+  visibility: hidden;
+}
+
+.trc-trigger__icon,
+.trc-trigger__box,
+.trc-trigger__chevron {
+  transition: opacity 0.24s ease;
+}
+
+time-range-chip-picker.trc-content-hidden .trc-trigger__icon,
+time-range-chip-picker.trc-content-hidden .trc-trigger__box,
+time-range-chip-picker.trc-content-hidden .trc-trigger__chevron {
+  opacity: 0;
+  transition: none;
+}
+
+/* ── Overlay ──────────────────────────────────────────────────────────────
+   No backdrop — a transparent click-catcher only, same as .dcp-overlay. */
+.trc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: transparent;
+  pointer-events: none;
+}
+
+.trc-overlay.is-active {
+  pointer-events: auto;
+}
+
+/* ── The pill morphs into this panel and back ─────────────────────────── */
+.trc-popup {
+  position: fixed;
+  z-index: 1200;
+  margin: 0;
+  inset: auto;
+  border: 0;
+  padding: 0;
+  display: none;            /* JS sets 'flex' on open */
+  flex-direction: column;
+
+  box-sizing: border-box;
+  overflow: clip;
+  border-radius: 22px;
+  text-align: left;
+
+  background: var(--glass-tint);
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+  backdrop-filter: blur(var(--glass-blur-md));
+  color: var(--text-color-primary);
+
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline),
+    var(--glass-highlight),
+    0 12px 40px 0 var(--glass-shadow-color);
+
+  transition:
+    top 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    left 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    height 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 0.42s ease;
+
+  will-change: top, left, width, height;
+}
+
+/* The panel carries `liquid-glass`, so the generic rule in liquid-glass.css
+   would replace the morph transition above wholesale. Merge the morph geometry
+   and the deform's translate/scale into one declaration — same fix as
+   `.dcp-popup.liquid-glass`. */
+.trc-popup.liquid-glass {
+  transition:
+    top 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    left 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    height 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 0.42s ease,
+    translate var(--press-out-dur) var(--ease-spring),
+    scale var(--press-out-dur) var(--ease-spring),
+    filter 0.2s ease;
+}
+
+.trc-popup.liquid-glass.lg-pressing {
+  transition:
+    border-radius 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    translate var(--press-in-dur) var(--press-in-ease),
+    scale var(--press-in-dur) var(--press-in-ease),
+    filter 0.2s ease;
+}
+
+.trc-popup.liquid-glass.lg-dragging {
+  transition:
+    border-radius 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    translate 0s, scale 0s, filter 0.2s ease;
+}
+
+/* The morph card is a big panel you're working inside — it shouldn't react to
+   hover at all (no lift, no brightness boost that washes out the slider). The
+   press/drag glass deform still fires. Same as the date / campus morph cards. */
+.trc-popup.liquid-glass:hover {
+  scale: 1;
+  filter: none;
+}
+
+.trc-popup__inner {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  overflow: hidden;
+
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 0.18s ease,
+    transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.trc-popup--open .trc-popup__inner {
+  opacity: 1;
+  transform: none;
+  transition-delay: 0.16s;
+}
+
+/* Shell cross-fades out over the reformed pill at the end of the close. */
+.trc-popup--closing {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+/* ── The slider, relocated into the panel ──────────────────────────────
+   The panel already provides the glass shell; strip the slider's own glass
+   chrome so it reads as one surface. Its .trs-title stays as the panel
+   heading (already styled to match .dcp-popup__title). */
+.trc-popup__inner .trs-wrapper {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.trc-popup__inner .trs-wrapper::after {
+  display: none;
+}
+
+/* The title row is the deform handle (see `data-lg-exclude` in
+   time-range-chip-picker.js) — everything else inside .trs-bar-wrapper stays a
+   live slider target. Native-app feel: no grab hand (see the cursor rule in
+   style.css); the press/drag deform is its own affordance. */
+.trc-popup__inner .trs-title {
+  cursor: default;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.trc-popup.liquid-glass.lg-pressing,
+.trc-popup.liquid-glass.lg-dragging {
+  filter: brightness(1.08) saturate(1.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trc-popup,
+  .trc-popup.liquid-glass,
+  .trc-popup__inner,
+  .trc-overlay,
+  .trc-trigger__chevron {
+    transition: none;
+  }
+  .trc-popup__inner {
+    transform: none;
+  }
+}
+
+/* The pill is hidden while docked — `.trc-trigger`'s own `display` beats the
+   UA `[hidden]` rule, so re-assert it. */
+.trc-trigger[hidden] {
+  display: none;
+}
+
+/* ── Docked (inline-expanded) mode ────────────────────────────────────────
+   Desktop 2-column layout: the panel sits directly in the form column
+   instead of morphing out of a pill into a fixed popup. Same glass chrome,
+   no fixed positioning, no morph transition. Toggled by components/picker-dock.js. */
+.trc-popup--docked {
+  position: static;
+  inset: auto;
+  /* The slider bar has no intrinsic width (handles are positioned by %), so
+     unlike the date panel this one needs an explicit width — a definite value,
+     not `min(…, 100%)`, which would collapse against the fit-content host. */
+  width: 26rem !important;
+  max-width: 100%;
+  height: auto !important;
+  max-height: none;
+  z-index: auto;
+  border-radius: 22px !important;
+  transition: none;
+  will-change: auto;
+  /* Static in-flow card — lighter shadow than the floating panel. */
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline),
+    var(--glass-highlight),
+    0 4px 24px 0 var(--glass-shadow-color);
+}
+
+/* Inner content is always visible when docked — there's no open/close cycle. */
+.trc-popup--docked .trc-popup__inner {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+/* Keep the liquid-glass press/drag deform on the docked card — just drop the
+   geometry transitions from the merged rule above (nothing moves any more). */
+.trc-popup--docked.liquid-glass {
+  transition:
+    translate var(--press-out-dur) var(--ease-spring),
+    scale var(--press-out-dur) var(--ease-spring),
+    filter 0.2s ease;
+}
+
+/* Docked panel hover: a gentle lift, but NOT the liquid-glass brightness boost
+   — on a big light-mode panel it blows out the slider. */
+.trc-popup--docked.liquid-glass:hover {
+  scale: 1.03;
+  filter: none;
+}

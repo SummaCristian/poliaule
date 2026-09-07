@@ -3,6 +3,13 @@
   "tabs.campus": "Campus",
   "tabs.search": "Search",
 
+  "shortcuts.title": "Keyboard shortcuts",
+  "shortcuts.search": "Open search",
+  "shortcuts.tabAvailable": "Available tab",
+  "shortcuts.tabCampus": "Campus tab",
+  "shortcuts.settings": "Open settings",
+  "shortcuts.help": "Show this list",
+
   "searchPlaceholder.title": "Search",
   "searchPlaceholder.subtitle": "Coming soon.",
 
@@ -39,11 +46,17 @@
   "status.occupiedSoon": "Occupied soon",
 
   "search.title": "Search Classroom",
-  "search.subtitle": "Browse campuses and buildings, or type a name to find any classroom.",
-  "search.inputPlaceholder": "e.g. 2.0.1, Trifoglio...",
+  "search.subtitle": "Browse campuses and buildings to find any classroom.",
+  "search.inputPlaceholder": "Room, course, professor, code…",
+  "search.sectionClassrooms": "Classrooms",
+  "search.sectionEvents": "Lessons & exams",
+  "search.moreSessions": "+{n} more sessions",
   "search.allCampuses": "All campuses",
   "search.back": "Back",
   "building.prefix": "Building",
+  "overview.title": "Buildings",
+  "overview.close": "Close overview",
+  "overview.subtitle": "{n} classrooms",
 
   "search.buildings": "{n} buildings",
   "search.classrooms": "{n} classrooms",
@@ -59,6 +72,7 @@
   "wip.line2": "It's coming, just hang in there! (or, you know, check back later)",
 
   "datepicker.today": "Today",
+  "datepicker.label": "Date",
 
   "campus.milanLabel": "Milano",
   "campus.otherLabel": "Other cities",
@@ -179,9 +193,11 @@
   "footer.checkOnGitHub": "Check on GitHub",
   "footer.disclaimer5": "Not affiliated with Politecnico di Milano.",
 
-  "footer.versionInfo": "Version 2.0.0-beta4",
+  "footer.versionInfo": "Version 2.0.0-beta5",
 
-  "changelog.item1": "Redesigned the available classrooms results section",
-  "changelog.item2": "Added favourite classrooms",
-  "changelog.item3": "Tweaked the glass material: it now responds to taps and gestures and feels more alive than ever"
+  "changelog.item1": "Redesigned the search screen",
+  "changelog.item2": "Added search for lessons and exams",
+  "changelog.item3": "Added keyboard shortcuts",
+  "changelog.item4": "Added a new way to move between buildings inside the available classrooms result list: simply tap on the building name pill to see all buildings",
+  "changelog.item5": "Redesigned the query pickers section: they now live in a sticky section on mobile, and in their dedicated area on desktop. On mobile, click any of the pills to expand it and reveal its picker."
 }

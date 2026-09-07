@@ -21,6 +21,7 @@ import {
 
 import { initSearchTab, navigateToBuilding, classroomsData as staticClassroomsData } from './search-classrooms-script.js';
 import { activateGroupTab } from './components/bottom-nav.js';
+import { initSearchOverlay } from './components/search-overlay.js';
 import { classroomDetail } from './components/classroom-detail.js';
 import { infoPage } from './components/info-page.js';
 
@@ -28,9 +29,14 @@ import { initTimePickers } from './components/time-picker.js';
 import { initTimeRangeSlider } from './components/time-range-slider.js';
 import { setupCampusPicker } from './components/campus-picker.js';
 import { setupDatePicker } from './components/date-picker.js';
+import './components/date-chip-picker.js';
+import './components/time-range-chip-picker.js';
+import { initPickerDock } from './components/picker-dock.js';
+import './components/data-fetch-card.js';
 
 import { haptics, defaultPatterns } from './components/haptics.js';
 import { buildCardForClassroom } from './components/classroom-list.js';
+import { buildingOverview } from './components/building-overview.js';
 import { initLiquidGlass } from './components/liquid-glass.js';
 import { initFavourites, renderFavourites } from './components/favourites.js';
 
@@ -38,6 +44,7 @@ import { initI18n, t, getLocale, applyTranslations, onLanguageSwitch, animateI18
 import { escapeHtml } from './utils/html.js';
 import './components/tooltip.js';
 import { initSettings, applyPreferredCampusIfEnabled, applyRememberLastCampusIfEnabled, SHOW_PARTIAL_KEY, INTERVAL_HOURS_KEY, AUTO_SEARCH_KEY, LIVE_SEARCH_KEY } from './components/settings.js';
+import { initKeybindings } from './components/keybindings.js';
 
 // ---------- SPLASH SCREEN ----------
 const _splashStartTime = Date.now();
@@ -163,6 +170,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.documentElement.style.setProperty('--header-height', `${header.offsetHeight}px`);
   setHeaderHeight();
   new ResizeObserver(setHeaderHeight).observe(header);
+
+  // Live height of the sticky picker bar (mobile), so the results' sticky
+  // per-building headers can park directly beneath it instead of overlapping.
+  const pickerBar = document.getElementById('available-classrooms-form');
+  if (pickerBar) {
+    const setPickerBarHeight = () =>
+      document.documentElement.style.setProperty('--picker-bar-height', `${pickerBar.offsetHeight}px`);
+    setPickerBarHeight();
+    new ResizeObserver(setPickerBarHeight).observe(pickerBar);
+  }
 })
 
 document.querySelectorAll('.button-primary').forEach(btn => {
@@ -178,7 +195,7 @@ document.querySelectorAll('.button-primary').forEach(btn => {
 // own card grid) holding a sticky header followed by that building's room
 // cards, to append directly into the outer <ul>. Returns { node, cardIndex }
 // (the next cardIndex feeds the stagger-animation sequencing).
-function buildBuildingSection(building, rooms, from, to, cardIndex = 0, isToday = false, date = null, campusId = null) {
+function buildBuildingSection(building, rooms, from, to, cardIndex = 0, isToday = false, date = null, campusId = null, allResults = []) {
   const buildingName = building.name;
 
   const allPartial = rooms.every(r => r.status === 'partially-free');
@@ -187,22 +204,55 @@ function buildBuildingSection(building, rooms, from, to, cardIndex = 0, isToday 
   // confined to this section (see .building-section in classroom-list.css).
   const section = document.createElement('li');
   section.className = 'building-section';
+  section.dataset.buildingName = buildingName;
+  if (building.id != null) section.dataset.buildingId = building.id;
   if (allPartial) section.dataset.allPartial = 'true';
 
   const headerEl = document.createElement('div');
   headerEl.className = 'building-section-header';
   headerEl.style.animationDelay = `${Math.min(cardIndex * 30, 300)}ms`;
   headerEl.innerHTML = `
-    <div class="building-section-titles liquid-glass">
-      <h3 class="building-name">${t('building.prefix')} ${escapeHtml(buildingName)}</h3>
-      ${building.altName ? `<p class="building-alt-name">${escapeHtml(building.altName)}</p>` : ''}
-    </div>
+    <button class="building-section-titles liquid-glass" type="button" aria-haspopup="dialog" aria-label="${escapeHtml(t('building.prefix'))} ${escapeHtml(buildingName)}">
+      <span class="building-name">${t('building.prefix')} ${escapeHtml(buildingName)}</span>
+      ${building.altName ? `<span class="building-alt-name">${escapeHtml(building.altName)}</span>` : ''}
+    </button>
     <button class="header-button building-section-btn liquid-glass" type="button" aria-label="${escapeHtml(t('building.prefix'))} ${escapeHtml(buildingName)}">
       <i class="hgi-stroke hgi-arrow-right-01" aria-hidden="true"></i>
     </button>
   `;
   cardIndex++;
   section.appendChild(headerEl);
+
+  // Tapping the name pill "zooms out" into the building overview grid.
+  const titlesBtn = headerEl.querySelector('.building-section-titles');
+  const openOverview = () => buildingOverview.open({
+    campusId,
+    date,
+    from,
+    to,
+    results: allResults,
+    sourceSection: section,
+    buildingName,
+  });
+  let downAt = null;
+  titlesBtn.addEventListener('pointerdown', (e) => {
+    downAt = { x: e.clientX, y: e.clientY, t: performance.now() };
+    buildingOverview.prewarm(section);
+  });
+  // Open on pointerup, not click: iOS Safari swallows the click when the tap
+  // lands while the page is still rubber-banding from a scroll (very easy to
+  // hit when you've just scrolled to the bottom of the list), and the shared
+  // liquid-glass handler eats it after a few px of finger travel. A short,
+  // near-stationary press is a tap. open() is a no-op if one already ran.
+  titlesBtn.addEventListener('pointerup', (e) => {
+    if (!downAt) return;
+    const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
+    const held = performance.now() - downAt.t;
+    downAt = null;
+    if (moved <= 12 && held < 700) openOverview();
+  });
+  // Fallback for keyboard / assistive-tech activation, which fires click only.
+  titlesBtn.addEventListener('click', openOverview);
 
   // Jump to this building's page in the Campus tab. The tab has to be made
   // visible *before* renderClassrooms runs — building the grid while the tab
@@ -252,11 +302,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     await initI18n();
     applyTranslations();
+    // <date-chip-picker> renders its date label via Intl at module-eval time,
+    // before initI18n() resolves — re-render it now that the locale is known.
+    document.querySelector('date-chip-picker')?.retranslate();
+    document.querySelector('time-range-chip-picker')?.retranslate();
 
     initSettings();
 
+    // Desktop keyboard shortcuts (no-ops on touch / narrow viewports)
+    initKeybindings();
+
     // Init info page overlay immediately — no data dependency
     infoPage.init();
+
+    // Search overlay (bottom-nav FAB) — lazy-loads its data on first open
+    initSearchOverlay();
 
     // Only the static classroom directory blocks the splash — it's what the
     // page shell (campus picker, search tab, classroom detail) is built from.
@@ -283,6 +343,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupTimePickers();
     initTimePickers();
     initTimeRangeSlider();
+
+    // Decide pill vs. inline-expanded pickers based on the form column's width
+    // (desktop two-column layout only).
+    initPickerDock();
 
     // Setup the language switch handler immediately — doesn't depend on
     // fonts and shouldn't wait for the splash to dismiss
@@ -331,6 +395,7 @@ async function initOccupancyData() {
   // Use the fetched data to set the only valid dates into the date picker
   setupDatePicker(() => preferInitialDate);
   document.getElementById('available-classrooms-form').removeAttribute('data-loading');
+  document.querySelector('date-chip-picker')?.removeAttribute('data-loading');
 
   setupDataFetchIndicator();
   setupLiveSearch();
@@ -380,6 +445,7 @@ document.getElementById('available-classrooms-form').addEventListener('submit', 
 // Builds the UI to show the results of the 'Available Classrooms' form submission,
 function renderAvailableClassroomsResults(results, date, from, to, campusId = null) {
   const container = document.getElementById('available-classrooms-results');
+  buildingOverview.reset(); // tear down the zoom-out view if it's open
   container.dataset.searched = 'true';
   container.innerHTML = ''; // Clear previous results
 
@@ -425,7 +491,7 @@ function renderAvailableClassroomsResults(results, date, from, to, campusId = nu
 
   let cardIndex = 0;
   results.forEach(buildingResult => {
-    const { node, cardIndex: next } = buildBuildingSection(buildingResult.building, buildingResult.rooms, from, to, cardIndex, isToday, date, campusId);
+    const { node, cardIndex: next } = buildBuildingSection(buildingResult.building, buildingResult.rooms, from, to, cardIndex, isToday, date, campusId, results);
     cardIndex = next;
     list.appendChild(node);
   });

@@ -1,0 +1,352 @@
+/* ── Building overview ("zoom out") ────────────────────────────────────
+   Tapping a building's name pill in the Available results zooms the results
+   container out, in place, into a grid of glass building cards — one per
+   building in the selected campus. One shared camera zoom of the two layers
+   (list ⇄ grid), driven with the Web Animations API in
+   components/building-overview.js (no View Transitions). */
+
+/* The whole interaction runs inside `.bo-stage` — a positioned, clipped frame
+   that takes the list's place (see building-overview.js). The results container
+   itself keeps ALL its own layout (sticky, grid-placed, self-scrolling): the
+   only thing we change on it is pinning its flex content to the top (it's a
+   flex column with `justify-content: space-evenly`). Whatever scrolled the
+   list (the page, or the panel on desktop) scrolls the grid the same way. */
+#available-classrooms-results.bo-active {
+  justify-content: flex-start;
+}
+
+/* Unclipped at rest, so the cards' soft shadows aren't cut off at the frame's
+   edges. Clipping is only needed while a morph runs (the incoming layer starts
+   blown up ~2× around the anchor). It's `overflow: clip`, NOT:
+   - `overflow: hidden` — that makes the stage a scroll container, which would
+     become the new reference for the list's sticky building headers, snapping
+     every stuck one back to its natural spot the instant the list moved in.
+     `overflow: clip` clips paint without being a scroll container.
+   - `clip-path` — Safari doesn't reliably clip composited (will-change /
+     transform) descendants against an ancestor's clip-path, so the blown-up
+     grid escaped the frame and rode over the list.
+   `overflow-clip-margin` keeps a little sideways room for the shadows where
+   it's supported; a tight clip is the harmless fallback. */
+.bo-stage {
+  position: relative;
+  width: 100%;
+  /* The results panel is a column flexbox with a max-height on desktop. A
+     flex item whose overflow isn't `visible` gets an automatic minimum size
+     of 0, so without this the stage would shrink to the panel's height and
+     clip the grid instead of overflowing it — and the panel couldn't scroll. */
+  flex: none;
+}
+
+#available-classrooms-results.bo-animating .bo-stage {
+  overflow: clip;
+  overflow-clip-margin: 3rem;
+}
+
+/* backdrop-filter is far too expensive to animate — drop it on every glass
+   surface involved for the duration of the morph. It's restored the moment
+   the .bo-animating class comes off. */
+#available-classrooms-results.bo-animating :is(.bo-card, .classroom-card, .building-section-titles, .bo-close, .bo-title) {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* The topbar (Edifici pill + ×) is `position: sticky`, which promotes it to its
+   own compositor layer — and that layer doesn't pick up the grid's animated
+   opacity, so it stays fully opaque through the whole morph. You only notice it
+   where it sits over the near-stationary anchor card (the pill over the first
+   card); the × rides the grid outward and its stuck-ness isn't obvious. Drop
+   the sticky layer for the morph — nothing scrolls during it anyway — and it
+   fades with the rest of the grid. z-index still keeps it above the cards. */
+#available-classrooms-results.bo-animating .bo-topbar {
+  position: relative;
+  top: auto;
+}
+
+/* The zoom drags a lot of off-screen list through the frame (the whole list
+   shrinks by ~2×). building-overview.js tags the sections that can actually
+   pass through it `.bo-onstage` — their cards get content-visibility forced
+   on so they don't pop in blank a frame late — and hides the rest, which is
+   most of the list and most of the raster work. */
+/* Not gated on .bo-animating: the classes are applied (and their layout
+   effect must land) before the morph measures anything, and they are removed
+   again the moment it settles. */
+.building-section.bo-offstage {
+  visibility: hidden;
+}
+
+.building-section.bo-onstage .classroom-card {
+  content-visibility: visible;
+  /* A tighter shadow while the list is being rasterised for the morph: the
+     40px blur on every card is the bulk of that raster time (profiled), and
+     at 10 % alpha the swap is invisible under the cross-fade. */
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline),
+    0 2px 8px 0 var(--glass-shadow-color);
+}
+
+/* The card keeps its photo and label through the morph — that's what makes it
+   read as a card. What comes off is only the two edge treatments that don't
+   survive a 2× scale anyway: the inset highlight (::before) and, the one that
+   actually costs, the 0.5px mask-composite gradient stroke (::after) — one
+   extra compositing pass per card, ~40 of them on the first frame. They snap
+   back on teardown; at that size nobody sees the transition. */
+#available-classrooms-results.bo-animating .classroom-card::before,
+#available-classrooms-results.bo-animating .classroom-card::after {
+  display: none;
+}
+
+/* On teardown the tight morph shadow gives way to the resting 40px one — ease
+   it back instead of snapping. Set only for that window (see #teardown), so
+   the cards carry no permanent box-shadow transition. */
+#available-classrooms-results.bo-restore .classroom-card {
+  transition: transform 0.15s ease, box-shadow 0.35s ease;
+}
+
+/* `.results-filter-row` sets `display:flex`, which outranks `[hidden]`. */
+.results-filter-row[hidden] {
+  display: none;
+}
+
+/* ── Grid ─────────────────────────────────────────────────────────────
+   A plain grid in normal flow; the page (or the desktop results panel)
+   scrolls it exactly as it scrolled the list it replaced. */
+.bo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.85rem;
+  padding: 0.25rem 0.25rem 1rem;
+}
+
+/* Always two-up on phones. A single full-width column would make each card
+   as wide as the section it grows from, so the "zoom out" would be no zoom at
+   all — just a slide. Two columns keep the ~2× scale that sells the motion. */
+@media (max-width: 600px) {
+  .bo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+}
+
+/* Parks where a building's sticky header would, so × stays within reach
+   while the grid scrolls. */
+.bo-topbar {
+  grid-column: 1 / -1;
+  position: sticky;
+  top: calc(var(--header-height, 84px) + 2.25rem + var(--picker-bar-height, 0px) + 0.5rem);
+  z-index: 3;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.15rem 0.25rem 0.35rem;
+  pointer-events: none;
+}
+
+.bo-topbar > * {
+  pointer-events: auto;
+}
+
+@media (min-width: 600px) {
+  .bo-topbar {
+    top: calc(var(--header-height, 84px) + 1.25rem);
+  }
+}
+
+@media (min-width: 1100px) {
+  .bo-topbar {
+    top: 1rem;
+  }
+}
+
+/* Same glass pill as the building name it grew out of, so it reads cleanly
+   over cards scrolling beneath it. */
+.bo-title {
+  margin: 0;
+  padding: 0.4rem 1.05rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-125);
+  font-weight: 800;
+  color: var(--text-color-primary);
+
+  background: var(--glass-tint);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline),
+    var(--glass-highlight),
+    0 4px 40px 0 var(--glass-shadow-color);
+}
+
+/* Same glass pill as .header-button (press / hover come from `.liquid-glass`). */
+.bo-close {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  border-color: transparent;
+  border-radius: var(--radius-pill);
+  color: var(--text-color-secondary);
+
+  background: var(--glass-tint);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline),
+    var(--glass-highlight),
+    0 4px 40px 0 var(--glass-shadow-color);
+}
+
+/* Outside 0.5px gradient stroke — radial-gradient mask, same as
+   .header-button::after in style.css (a true circle has a seam with the
+   box-corner mask trick). */
+.bo-close::after {
+  content: "";
+  position: absolute;
+  inset: -0.5px;
+  border-radius: inherit;
+
+  background: var(--glass-stroke-gradient);
+  opacity: var(--glass-stroke-opacity);
+
+  -webkit-mask-image: radial-gradient(circle closest-side, transparent calc(100% - 0.5px), #fff calc(100% - 0.5px));
+  mask-image: radial-gradient(circle closest-side, transparent calc(100% - 0.5px), #fff calc(100% - 0.5px));
+
+  pointer-events: none;
+}
+
+.bo-close .material-symbols-outlined {
+  font-size: 1.25rem;
+}
+
+/* ── Card ─────────────────────────────────────────────────────────────
+   Same glass material + 0.5px gradient stroke as .building-section-titles. */
+.bo-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  contain: paint;
+
+  display: flex;
+  flex-direction: column;
+  min-height: 11.5rem;
+  padding: 0.9rem;
+  border-radius: var(--radius-lg);
+  text-align: start;
+
+  background: var(--glass-tint);
+  backdrop-filter: blur(var(--glass-blur-lg));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
+
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline),
+    var(--glass-highlight),
+    0 4px 30px 0 var(--glass-shadow-color);
+}
+
+.bo-card::after {
+  content: "";
+  position: absolute;
+  inset: -0.5px;
+  border-radius: inherit;
+  padding: 0.5px;
+
+  background: var(--glass-stroke-gradient);
+  opacity: var(--glass-stroke-opacity);
+
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+
+  pointer-events: none;
+}
+
+.bo-card[role="button"] {
+  cursor: pointer;
+  transition: transform 0.16s ease;
+}
+
+.bo-card[role="button"]:active {
+  transform: scale(0.97);
+}
+
+.bo-card--inactive {
+  opacity: 0.5;
+}
+
+/* ── Card body ────────────────────────────────────────────────────────*/
+.bo-card-body {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.bo-card-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+}
+
+.bo-card-name {
+  font-size: var(--text-125);
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--text-color-primary);
+}
+
+.bo-card-alt {
+  font-size: var(--text-80);
+  font-weight: 600;
+  color: var(--text-color-secondary);
+}
+
+.bo-card-total {
+  margin-top: 0.15rem;
+  font-size: var(--text-72);
+  font-weight: 700;
+}
+
+.bo-card-counts {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.bo-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+
+  padding: 0.22rem 0.5rem;
+  border-radius: var(--radius-pill);
+
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  font-size: var(--text-70);
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.bo-count b {
+  font-size: var(--text-85);
+  font-weight: 800;
+}
+
+.bo-count.is-zero {
+  opacity: 0.32;
+}
+
+.bo-count.free          { color: var(--color-status-free); }
+.bo-count.free-soon     { color: var(--color-status-free-soon); }
+.bo-count.occupied-soon { color: var(--color-status-partial); }
+.bo-count.occupied      { color: var(--color-status-busy); }

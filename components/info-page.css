@@ -1267,7 +1267,6 @@ body.info-open .header-title-btn {
   font-size: 13px;
   font-weight: 500;
   border-radius: var(--radius-pill);
-  cursor: pointer;
   z-index: 1;
   color: #555;
   display: flex;

@@ -1,0 +1,199 @@
+/* ── Data-fetch card ─────────────────────────────────────────────────────
+   The header's freshness-indicator button morphs into this glass card and
+   back — same shell technique as campus-picker.css / date-chip-picker.css: a
+   fixed element whose box (top/left/width/height/border-radius) transitions
+   between the trigger's rect and the card's. data-fetch-card.js drives the
+   geometry.
+
+   Difference from the pickers: the card keeps the `liquid-glass` class while
+   open, so the press / drag-deform gesture stays alive on the expanded state.
+   The generic `.liquid-glass` rule in liquid-glass.css would otherwise replace
+   this element's transition wholesale, so — exactly as `.popover.liquid-glass`
+   does — the morph transition and the deform's translate/scale are merged into
+   one declaration below. */
+
+/* Hide the button's indicator while it's morphed into the card. */
+#data-fetch-btn.dfc-anim {
+  visibility: hidden;
+}
+
+#data-fetch-btn .pulse-indicator {
+  transition: opacity 0.24s ease;
+}
+
+#data-fetch-btn.dfc-content-hidden .pulse-indicator {
+  opacity: 0;
+  transition: none;
+}
+
+/* ── Overlay — transparent click-catcher only, no backdrop (like .dcp-overlay) */
+.dfc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: transparent;
+  pointer-events: none;
+}
+
+.dfc-overlay.is-active {
+  pointer-events: auto;
+}
+
+/* ── The button morphs into this card and back ───────────────────────── */
+.dfc-popup {
+  position: fixed;
+  z-index: 1200;
+  margin: 0;
+  inset: auto;
+  border: 0;
+  padding: 0;
+  display: none;            /* JS sets 'flex' on open */
+  flex-direction: column;
+
+  box-sizing: border-box;
+  overflow: clip;
+  border-radius: 20px;
+  text-align: left;
+
+  background: var(--glass-tint);
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+  backdrop-filter: blur(var(--glass-blur-md));
+  color: var(--text-color-primary);
+
+  box-shadow:
+    0 0 0 0.1px var(--glass-outline),
+    var(--glass-highlight),
+    0 12px 40px 0 var(--glass-shadow-color);
+
+  will-change: top, left, width, height;
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .dfc-popup {
+    background: color-mix(in srgb, var(--background-color-secondary) 95%, black);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .dfc-popup {
+      background: color-mix(in srgb, var(--background-color-secondary) 95%, white);
+    }
+  }
+}
+
+/* Outside 0.5px gradient stroke — same recipe as .dcp-trigger::after. */
+.dfc-popup::after {
+  content: "";
+  position: absolute;
+  inset: -0.5px;
+  border-radius: inherit;
+  padding: 0.5px;
+  background: var(--glass-stroke-gradient);
+  opacity: var(--glass-stroke-opacity);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Morph geometry + the liquid-glass deform, merged into one transition so
+   neither clobbers the other (see the note at the top + `.popover.liquid-glass`
+   in liquid-glass.css). */
+.dfc-popup,
+.dfc-popup.liquid-glass {
+  transition:
+    top 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    left 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    height 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 0.42s ease,
+    translate var(--press-out-dur) var(--ease-spring),
+    scale var(--press-out-dur) var(--ease-spring),
+    filter 0.2s ease;
+}
+
+.dfc-popup.liquid-glass.lg-pressing {
+  transition:
+    top 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    left 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    height 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    translate var(--press-in-dur) var(--press-in-ease),
+    scale var(--press-in-dur) var(--press-in-ease),
+    filter 0.2s ease;
+}
+
+.dfc-popup.liquid-glass.lg-dragging {
+  transition:
+    top 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    left 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    height 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    translate 0s, scale 0s, filter 0.2s ease;
+}
+
+/* A full panel shouldn't drift on hover-lift — only the press/drag deform. */
+.dfc-popup.liquid-glass:hover {
+  scale: 1;
+}
+
+/* The shell takes focus on open (for Escape / screen-reader context) but it's
+   not a control — never paint a focus ring on it, including the one the browser
+   shows on the next keypress after a programmatic focus. */
+.dfc-popup:focus,
+.dfc-popup:focus-visible {
+  outline: none;
+}
+
+/* Scrolling stays OFF until the shell finishes expanding (`--open`): mid-morph
+   the shell is far shorter than this content, so an always-on `overflow-y: auto`
+   renders a scrollbar for the whole animation that only vanishes at the end. */
+.dfc-popup__inner {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px;
+  overflow: hidden;
+
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 0.18s ease,
+    transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.dfc-popup--open .dfc-popup__inner {
+  opacity: 1;
+  transform: none;
+  transition-delay: 0.16s;
+  overflow-y: auto;
+}
+
+/* Shell cross-fades out over the reformed button at the end of the close. */
+.dfc-popup--closing {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+/* The status container's title spans the accent gradient (.popover-title);
+   at card width it can breathe on its own line. */
+.dfc-popup .data-fetch-popover-container {
+  gap: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dfc-popup,
+  .dfc-popup.liquid-glass,
+  .dfc-popup__inner,
+  .dfc-overlay,
+  #data-fetch-btn .pulse-indicator {
+    transition: none;
+  }
+  .dfc-popup__inner {
+    transform: none;
+  }
+}

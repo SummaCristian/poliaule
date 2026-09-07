@@ -119,7 +119,6 @@
 
   background: none;
   border: none;
-  cursor: pointer;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
 
@@ -250,13 +249,10 @@
   pointer-events: auto;
   position: absolute;
   touch-action: none;
-  cursor: grab;
+  /* Native-app feel: no grab hand (see the cursor rule in style.css). */
+  cursor: default;
   will-change: transform;
   transform-origin: center;
-}
-
-.bn-pill-hit:active {
-  cursor: grabbing;
 }
 
 /* ---- Standalone Search button, split off from the group ---- */
@@ -276,7 +272,6 @@
   padding: 1.1875rem;
   border: none;
   border-radius: var(--radius-pill);
-  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 
   background: var(--glass-tint);
@@ -348,7 +343,7 @@
   .bn-wrapper {
     /* +2rem clears the header blur/fade layer's overhang (.header-blur-layers
        is inset:0 with bottom:-2rem), which would otherwise blur the rail's top. */
-    top: calc(var(--header-height, 80px) + 2rem + 20px);
+    top: calc(var(--header-height, 84px) + 2rem + 20px);
     left: 20px;
     right: auto;
     bottom: auto;

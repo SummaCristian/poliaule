@@ -4,6 +4,18 @@
 
   scrollbar-width: thin;
   scrollbar-color: gray transparent;
+
+  /* Layout metrics normally kept live by JS (script.js / bottom-nav.js write
+     these onto the same element as inline styles, which win over these). They
+     are seeded here so the very first layout — before those scripts run, or if
+     a module fails to load — is already close, instead of every consumer
+     falling back to its own hand-written literal (which had drifted: some said
+     80px, some 84px for the header). */
+  --header-height: 84px;
+  --bottom-nav-height: 88px;
+  --side-nav-width: 88px;
+  /* not --picker-bar-height: it is legitimately 0 when the picker bar isn't
+     sticky (desktop) or not present, so its per-use `, 0px` fallback stays. */
 }
 
 .app-tooltip {
@@ -30,6 +42,60 @@
 
 *, *:before, *:after {
   box-sizing: inherit;
+}
+
+/* Native-app feel: reserve the pointing-hand cursor for genuine links only.
+   Buttons, tabs, toggles, cards, selects and menu items keep the default
+   arrow and communicate their affordance through hover/active states, the
+   way native UI does. Individual components must not re-add cursor: pointer,
+   nor grab/grabbing on custom drag controls (sliders, scrubbers, deform
+   handles) — draggability is shown through motion, not a cursor swap. Only
+   col-resize / not-allowed / text, where they genuinely apply. */
+button,
+[role="button"],
+[role="option"],
+[role="tab"],
+[role="switch"],
+[role="tablist"],
+[role="listbox"],
+[role="menu"],
+label,
+summary,
+select {
+  cursor: default;
+}
+
+/* Native-app feel: UI chrome is not text you drag-select. Buttons, tabs,
+   toggles, option lists and the label text inside them are unselectable,
+   like native controls. Genuine content — classroom names, addresses,
+   opening hours, schedule/event text, info-page prose, text inputs — opts
+   back in with `user-select: text` in its own component. */
+button,
+[role="button"],
+[role="option"],
+[role="tab"],
+[role="switch"],
+[role="tablist"],
+[role="listbox"],
+[role="menu"],
+label,
+summary,
+select,
+.app-header,
+.bn-tabbar,
+.empty-container-title,
+.empty-container-subtitle,
+.detail-section-header,
+.detail-section-title,
+.detail-status-label,
+.detail-schedule-legend-label,
+.detail-schedule-labels-pill,
+.detail-schedule-label-cell,
+.badge-label,
+.badge-text,
+.github-stat-label {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 :root {
@@ -82,10 +148,15 @@
   --text-90: 0.9rem;
   --text-100: 1rem;
   --text-110: 1.1rem;
-  --text-125: 1.25rem;
-  --text-150: 1.5rem;
-  --text-175: 1.75rem;
-  --text-200: 2rem;
+  /* The headline steps are fluid: they hold their full (max) size from tablet
+     width up, and ease down on narrow phones so a 24px card title on a 360px
+     screen doesn't dominate the card. rem alone can't do this — it's fixed to
+     the root size and never reacts to the viewport. Max == the old fixed
+     value, so desktop is unchanged. */
+  --text-125: clamp(1.15rem, 1.09rem + 0.3vw, 1.25rem);
+  --text-150: clamp(1.3rem, 1.16rem + 0.7vw, 1.5rem);
+  --text-175: clamp(1.45rem, 1.26rem + 0.95vw, 1.75rem);
+  --text-200: clamp(1.6rem, 1.36rem + 1.2vw, 2rem);
 
   /* Glass material — the tabbar's recipe (bn-tabbar, pre-tokenization) is
      the canonical source for this; every other translucent surface should
@@ -239,15 +310,31 @@ html {
   overflow-x: hidden;
   overflow-y: auto;
 
-  /* Always reserve the scrollbar's width. Opening the classroom detail
-     collapses every .tab-content to height:0, which removes the page
-     scrollbar; closing it brings the scrollbar back. Without a stable
-     gutter that ~15px swing changes the content width, and grids sized
-     with repeat(auto-fill, ...) (Campus building page, Available results)
-     resolve to a different column count before vs. after the transition. */
-  scrollbar-gutter: stable;
+  /* Don't let Android Chrome / WebView auto-inflate the font size of text in
+     wide blocks ("font boosting"). It scales the *rendered* size — not the rem
+     values — so it only shows on Android (never desktop or iOS Safari), which
+     is exactly why the cards looked oversized only there. `100%` keeps the
+     user's own browser font-size preference working. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 
   background-color: transparent;
+}
+
+/* Always reserve the scrollbar's width, but only where there's a classic
+   (space-taking) scrollbar to reserve — i.e. pointer:fine / desktop. Opening
+   the classroom detail collapses every .tab-content to height:0, which removes
+   the page scrollbar; closing it brings it back. Without a stable gutter that
+   ~15px swing changes the content width, and grids sized with
+   repeat(auto-fill, ...) (Campus building page, Available results) resolve to a
+   different column count before vs. after the transition.
+   On touch devices the scrollbar is an overlay (zero-width), so `stable` would
+   only ever subtract usable width for no benefit — and on a 360px phone that
+   was enough to drop the results grid to a single column. `scrollbar-width:
+   thin` (set on :root) still applies everywhere; that's the "thin scrollbar",
+   independent of this. */
+@media (pointer: fine) {
+  html { scrollbar-gutter: stable; }
 }
 
 body {
@@ -311,9 +398,12 @@ html:has(.splash-overlay) {
 }
 
 .splash-logo {
-  width: 10rem;
+  /* Match the header logo's sizing model (height-driven, width auto) so the
+     splash → header view transition is a pure uniform scale. A fixed square
+     box here letterboxes the non-square artwork, which makes the shared
+     element land at the wrong size/position and jump at the end. */
+  width: auto;
   height: 10rem;
-  object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
   will-change: transform;
@@ -438,10 +528,18 @@ html:has(.splash-overlay) {
 /* Splash logo View Transition */
 @supports (view-transition-name: none) {
   /* Pure positional morph — suppress the default cross-fade so it reads as
-     one image moving rather than two images dissolving into each other. */
-  ::view-transition-old(splash-icon),
+     one image moving rather than two images dissolving into each other.
+     The splash logo and the header logo are the same artwork, so we keep
+     only the "old" snapshot visible (it scales with the group) and hide the
+     "new" one entirely — otherwise both are painted at full opacity at
+     different sizes and you see two icons stacked during the morph. */
+  ::view-transition-old(splash-icon) {
+    animation: none;
+  }
+
   ::view-transition-new(splash-icon) {
     animation: none;
+    opacity: 0;
   }
 
   ::view-transition-group(splash-icon) {
@@ -521,7 +619,6 @@ label {
   background-color: transparent;
   border-color: transparent;
 
-  cursor: pointer;
 }
 
 .secondary {
@@ -610,10 +707,25 @@ label {
   isolation: isolate;
 }
 
+/* Opaque fill behind the status-bar safe area. The blur/fade layers live
+   inside .header-top-line-container, which starts below .header's
+   safe-area padding, so that strip has no background of its own. On most
+   browsers the status bar hides it; in a Safari iOS PWA the safe area is
+   transparent and page content is visible scrolling underneath. */
+.header::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: env(safe-area-inset-top);
+  background-color: var(--background-color);
+  z-index: 0;
+  pointer-events: none;
+}
+
 .header-blur-layers {
   position: absolute;
   inset: 0;
-  bottom: -2rem;
+  bottom: -0.5rem;
 
   pointer-events: none;
   /* Negative so it paints behind header-top-line-container's own (non-
@@ -697,7 +809,6 @@ label {
   background: none;
   border: none;
   padding: 0;
-  cursor: pointer;
   border-radius: 0.5rem;
   -webkit-tap-highlight-color: transparent;
   font: inherit;
@@ -776,7 +887,6 @@ label {
     var(--glass-highlight),
     0 4px 40px 0 var(--glass-shadow-color);
 
-  cursor: pointer;
 
   transition:
     background-color 0.2s ease,
@@ -1146,7 +1256,9 @@ body.info-open .header-nav-row {
   align-items: center;
   justify-content: flex-start;
   gap: 4px;
-  font-size: 18px;
+  /* Base size for the 600–1100px range; the <600 and >1100 media queries below
+     override it. Token, not a bare 18px, to stay on the type scale. */
+  font-size: var(--text-110);
   font-weight: bold;
   /* Solid color + opacity, not rgba() alpha: Safari drops the alpha channel
      of an inherited color on the HugeIcons ::before glyph (stacking context
@@ -1213,8 +1325,58 @@ body.info-open .header-nav-row {
   gap: 1rem;
 }
 
+/* Campus + Date pills sit side by side, wrapping to a second line on narrow
+   viewports, left-aligned across the full width of the form. */
+.picker-row {
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+
+  /* So the docked date/time pickers (desktop) can size-query this column. */
+  container-type: inline-size;
+}
+
+/* Transparent by default — date + time act as direct children of .picker-row
+   (mobile pill bar is unchanged). The desktop rule below turns it into a real
+   flex box so the two panels stack together beside the campus list. */
+.picker-substack {
+  display: contents;
+}
+
+/* <campus-chip-picker> / <date-chip-picker> are display:block custom elements;
+   without this each stretches to the row's full width and forces a wrap even
+   when both pills would comfortably fit on one line. Shrink-wrap them to their
+   pill instead. `.picker-substack` is display:contents on mobile, so its
+   children (date + time) are laid out by `.picker-row` directly and need the
+   same treatment. */
+.picker-row > *,
+.picker-substack > * {
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+}
+
 .available-classroom-results {
   color: var(--text-color-primary);
+}
+
+/* On mobile the picker form sticks under the header so the campus / date /
+   time controls stay reachable while scrolling the results below. No
+   background of its own — it sits inside the header's blur/fade overhang, and
+   the glass pills let the results scroll through behind them. (Desktop lays
+   the form out in a static grid column — overridden at the 600px breakpoint.) */
+#available-classrooms-form {
+  position: sticky;
+  /* Extra clearance so the glass pills don't sit inside the header's blur/fade
+     overhang on mobile. */
+  top: calc(var(--header-height, 84px) + 2.25rem);
+  z-index: 10;
+
+  gap: 8px;
 }
 
 /* ── Skeleton loading states ──────────────────────────────────── */
@@ -1229,8 +1391,7 @@ body.info-open .header-nav-row {
   }
 }
 
-.date-picker-skeleton,
-.time-pickers-skeleton {
+.date-picker-skeleton {
   display: none;
 }
 
@@ -1253,26 +1414,7 @@ form[data-loading] .date-picker-skeleton>div {
   flex-shrink: 0;
 }
 
-form[data-loading] .time-pickers-skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-form[data-loading] .time-pickers-skeleton>div {
-  height: 3.5rem;
-  border-radius: 1.75rem;
-  flex: 1;
-}
-
-form[data-loading] .time-pickers-skeleton>div:last-child {
-  height: 1.4rem;
-  border-radius: 0.7rem;
-  opacity: 0.5;
-}
-
-form[data-loading] .date-picker-skeleton>div,
-form[data-loading] .time-pickers-skeleton>div {
+form[data-loading] .date-picker-skeleton>div {
   background: linear-gradient(90deg,
       color-mix(in srgb, var(--text-color-primary) 6%, transparent) 25%,
       color-mix(in srgb, var(--text-color-primary) 12%, transparent) 50%,
@@ -1590,7 +1732,6 @@ ul li::marker {
 
   -webkit-tap-highlight-color: transparent;
   user-select: none;
-  cursor: pointer;
 }
 
 @media (hover: hover) {
@@ -1738,6 +1879,58 @@ are rendered as solid colors
     grid-column: 1;
     grid-row: 3;
     align-self: start;
+
+    /* Not sticky on desktop — the results column scrolls on its own. */
+    position: static;
+    gap: 1rem;
+  }
+
+  /* When the pickers dock (inline-expanded, see components/picker-dock.js) they
+     flow as a wrapping row of glass panels: side by side when the column is
+     wide enough, stacked when it isn't. Each panel hugs its own content
+     (`.picker-row` is already `flex-flow: row wrap`). */
+  .picker-row:has(.dcp-popup--docked),
+  .picker-row:has(.trc-popup--docked),
+  .picker-row:has(.cp-panel-host--docked) {
+    align-items: flex-start;
+  }
+
+  /* Each expanded panel hugs its own content and does NOT shrink — so it
+     wraps to the next line when the column can't fit it beside its sibling,
+     rather than squashing. */
+  date-chip-picker:has(.dcp-popup--docked),
+  time-range-chip-picker:has(.trc-popup--docked),
+  .picker-row > .cp-panel-host--docked {
+    flex: 0 0 auto;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  /* Campus listbox docked in the column (its shadow host, portaled here from
+     <body> by campus-picker.js). */
+  .cp-panel-host--docked {
+    display: block;
+  }
+
+  /* Date + Time sit in their own wrapping flex box beside the campus panel.
+     `flex: 1 1 0` lets the box take whatever width is left on campus's line,
+     and its contents wrap within that:
+       - room for both  -> campus | date time
+       - room for one   -> campus | date
+                                    time
+       - no room        -> the whole box drops below campus, then date/time
+                           wrap again on the full width (side by side, else
+                           stacked).
+     Its `min-content` width is the wider single picker, so the box only
+     stays beside campus while at least one picker fits there. */
+  .picker-row .picker-substack {
+    display: flex;
+    flex-flow: row wrap;
+    gap: 0.75rem;
+    flex: 1 1 0;
+    width: auto;
+    align-content: flex-start;
+    align-items: flex-start;
   }
 
   #available-classrooms-results {
@@ -1746,12 +1939,22 @@ are rendered as solid colors
     align-self: start;
 
     position: sticky;
-    top: calc(var(--header-height, 80px) + 1rem);
+    top: calc(var(--header-height, 84px) + 1rem);
 
-    max-height: calc(100dvh - var(--header-height, 80px) - 2rem);
+    max-height: calc(100dvh - var(--header-height, 84px) - 2rem);
     overflow-y: auto;
 
-    margin: 1rem 0;
+    /* A scroll container clips on BOTH axes, so the cards' 40px soft shadows
+       were cut off at the panel's sides. Push the panel's edges outward — into
+       the page's padding-right on the right, and across the grid's 1.5rem
+       column gap plus 0.75rem of the pickers column on the left — and pad by
+       the same amount, so the content stays put while the clip edge moves out
+       past the shadows. The shadow's tail needs the full 40px + offset before
+       it's gone, or its cut-off reads as a faint line; the 0.75rem overlap
+       stays inside the picker panels' own padding, so nothing clickable is
+       under it. */
+    margin: 1rem -2rem 1rem -2.25rem;
+    padding-inline: 2.25rem 2rem;
   }
 
   #available-classrooms-results.empty {
