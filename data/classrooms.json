@@ -5012,7 +5012,7 @@
     "name": "Colombo",
     "id": "MIA06",
     "lat": 45.4719,
-    "lon": 9.2269,
+    "long": 9.2269,
     "buildings": [
       {
         "name": "32.1",
@@ -5152,7 +5152,7 @@
     "name": "Durando",
     "id": "MIB02",
     "lat": 45.5044,
-    "lon": 9.164,
+    "long": 9.164,
     "buildings": [
       {
         "name": "B1",
@@ -6691,7 +6691,7 @@
     "name": "La Masa",
     "id": "MIB01",
     "lat": 45.5029,
-    "lon": 9.1563,
+    "long": 9.1563,
     "buildings": [
       {
         "name": "B12",
@@ -8113,7 +8113,7 @@
     "name": "Cremona",
     "id": "CRG02",
     "lat": 45.1349,
-    "lon": 10.0154,
+    "long": 10.0154,
     "buildings": [
       {
         "name": "CR03",
@@ -8261,7 +8261,7 @@
     "name": "Lecco",
     "id": "LCF04",
     "lat": 45.8492,
-    "lon": 9.397,
+    "long": 9.397,
     "buildings": [
       {
         "name": "8",
@@ -9243,7 +9243,7 @@
     "name": "Mantova",
     "id": "MNG01",
     "lat": 45.1603,
-    "lon": 10.7889,
+    "long": 10.7889,
     "buildings": [
       {
         "name": "1",
