@@ -111,7 +111,17 @@
 
 .building-section {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  /* Fit as many columns as fit at an 8.5rem card floor, and fall back to a
+     single column when even one 8.5rem card won't fit (very small window /
+     split screen). Two parts matter:
+       - 8.5rem, not the old 9.5rem: the results box at a 360px viewport is
+         only ~296px wide (tab + list + container padding), and two 9.5rem
+         tracks + the gap need ~316px — that 20px is why a stock 360px Android
+         phone dropped to one giant column.
+       - min(100%, 8.5rem): when the row itself is narrower than 8.5rem the
+         floor collapses to 100% instead of overflowing, so the fallback is a
+         clean single column rather than a clipped card. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8.5rem), 1fr));
   gap: 0.75rem;
 }
 
@@ -218,7 +228,7 @@
 }
 
 .building-name {
-  font-size: 18px;
+  font-size: var(--text-110);
   font-weight: 700;
   line-height: 1.2;
   color: rgba(0, 0, 0, 0.5);
@@ -226,7 +236,7 @@
 }
 
 .building-alt-name {
-  font-size: 12px;
+  font-size: var(--text-75);
   font-weight: 600;
   line-height: 1.1;
   color: rgba(0, 0, 0, 0.5);
@@ -292,6 +302,10 @@
 .classroom-card {
   position: relative;
   aspect-ratio: 154 / 196;
+  /* Belt-and-braces cap: if a card ever ends up in a very wide single track
+     (some fallback layout, an unexpected container width), the portrait
+     aspect-ratio won't blow it up to a full-screen tile. */
+  max-width: 24rem;
   text-align: start;
 
   padding: 0;

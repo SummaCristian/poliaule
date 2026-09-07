@@ -4,6 +4,18 @@
 
   scrollbar-width: thin;
   scrollbar-color: gray transparent;
+
+  /* Layout metrics normally kept live by JS (script.js / bottom-nav.js write
+     these onto the same element as inline styles, which win over these). They
+     are seeded here so the very first layout — before those scripts run, or if
+     a module fails to load — is already close, instead of every consumer
+     falling back to its own hand-written literal (which had drifted: some said
+     80px, some 84px for the header). */
+  --header-height: 84px;
+  --bottom-nav-height: 88px;
+  --side-nav-width: 88px;
+  /* not --picker-bar-height: it is legitimately 0 when the picker bar isn't
+     sticky (desktop) or not present, so its per-use `, 0px` fallback stays. */
 }
 
 .app-tooltip {
@@ -136,10 +148,15 @@ select,
   --text-90: 0.9rem;
   --text-100: 1rem;
   --text-110: 1.1rem;
-  --text-125: 1.25rem;
-  --text-150: 1.5rem;
-  --text-175: 1.75rem;
-  --text-200: 2rem;
+  /* The headline steps are fluid: they hold their full (max) size from tablet
+     width up, and ease down on narrow phones so a 24px card title on a 360px
+     screen doesn't dominate the card. rem alone can't do this — it's fixed to
+     the root size and never reacts to the viewport. Max == the old fixed
+     value, so desktop is unchanged. */
+  --text-125: clamp(1.15rem, 1.09rem + 0.3vw, 1.25rem);
+  --text-150: clamp(1.3rem, 1.16rem + 0.7vw, 1.5rem);
+  --text-175: clamp(1.45rem, 1.26rem + 0.95vw, 1.75rem);
+  --text-200: clamp(1.6rem, 1.36rem + 1.2vw, 2rem);
 
   /* Glass material — the tabbar's recipe (bn-tabbar, pre-tokenization) is
      the canonical source for this; every other translucent surface should
@@ -293,15 +310,31 @@ html {
   overflow-x: hidden;
   overflow-y: auto;
 
-  /* Always reserve the scrollbar's width. Opening the classroom detail
-     collapses every .tab-content to height:0, which removes the page
-     scrollbar; closing it brings the scrollbar back. Without a stable
-     gutter that ~15px swing changes the content width, and grids sized
-     with repeat(auto-fill, ...) (Campus building page, Available results)
-     resolve to a different column count before vs. after the transition. */
-  scrollbar-gutter: stable;
+  /* Don't let Android Chrome / WebView auto-inflate the font size of text in
+     wide blocks ("font boosting"). It scales the *rendered* size — not the rem
+     values — so it only shows on Android (never desktop or iOS Safari), which
+     is exactly why the cards looked oversized only there. `100%` keeps the
+     user's own browser font-size preference working. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 
   background-color: transparent;
+}
+
+/* Always reserve the scrollbar's width, but only where there's a classic
+   (space-taking) scrollbar to reserve — i.e. pointer:fine / desktop. Opening
+   the classroom detail collapses every .tab-content to height:0, which removes
+   the page scrollbar; closing it brings it back. Without a stable gutter that
+   ~15px swing changes the content width, and grids sized with
+   repeat(auto-fill, ...) (Campus building page, Available results) resolve to a
+   different column count before vs. after the transition.
+   On touch devices the scrollbar is an overlay (zero-width), so `stable` would
+   only ever subtract usable width for no benefit — and on a 360px phone that
+   was enough to drop the results grid to a single column. `scrollbar-width:
+   thin` (set on :root) still applies everywhere; that's the "thin scrollbar",
+   independent of this. */
+@media (pointer: fine) {
+  html { scrollbar-gutter: stable; }
 }
 
 body {
@@ -1223,7 +1256,9 @@ body.info-open .header-nav-row {
   align-items: center;
   justify-content: flex-start;
   gap: 4px;
-  font-size: 18px;
+  /* Base size for the 600–1100px range; the <600 and >1100 media queries below
+     override it. Token, not a bare 18px, to stay on the type scale. */
+  font-size: var(--text-110);
   font-weight: bold;
   /* Solid color + opacity, not rgba() alpha: Safari drops the alpha channel
      of an inherited color on the HugeIcons ::before glyph (stacking context
@@ -1904,9 +1939,9 @@ are rendered as solid colors
     align-self: start;
 
     position: sticky;
-    top: calc(var(--header-height, 80px) + 1rem);
+    top: calc(var(--header-height, 84px) + 1rem);
 
-    max-height: calc(100dvh - var(--header-height, 80px) - 2rem);
+    max-height: calc(100dvh - var(--header-height, 84px) - 2rem);
     overflow-y: auto;
 
     /* A scroll container clips on BOTH axes, so the cards' 40px soft shadows
