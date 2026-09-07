@@ -197,5 +197,7 @@
 
   "changelog.item1": "Redesigned the search screen",
   "changelog.item2": "Added search for lessons and exams",
-  "changelog.item3": "Added keyboard shortcuts"
+  "changelog.item3": "Added keyboard shortcuts",
+  "changelog.item4": "Added a new way to move between buildings inside the available classrooms result list: simply tap on the building name pill to see all buildings",
+  "changelog.item5": "Redesigned the query pickers section: they now live in a sticky section on mobile, and in their dedicated area on desktop. On mobile, click any of the pills to expand it and reveal its picker."
 }

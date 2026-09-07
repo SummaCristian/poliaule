@@ -70,7 +70,7 @@
     <span class="splash-loading-label">Loading</span>
   </div>
 
-<!-- NoScript Overlay (clients with JS disabled) -->
+  <!-- NoScript Overlay (clients with JS disabled) -->
   <noscript>
     <div class="noscript-overlay">
       <p>PoliAule requires JavaScript to work. Please enable it in your browser settings.</p>
@@ -150,14 +150,17 @@
       <!-- Favourite Classrooms -->
       <div class="favourites-section">
         <div class="section-header">
-          <h3 class="section-header-title"><i class="hgi-stroke hgi-star section-header-title-icon" aria-hidden="true"></i><span data-i18n="favourites.title">Favourites</span></h3>
+          <h3 class="section-header-title"><i class="hgi-stroke hgi-star section-header-title-icon"
+              aria-hidden="true"></i><span data-i18n="favourites.title">Favourites</span></h3>
         </div>
         <div id="favourites-carousel" class="favourites-carousel" hidden></div>
-        <p id="favourites-empty" class="favourites-empty secondary" data-i18n="favourites.empty">Star a classroom to pin it here.</p>
+        <p id="favourites-empty" class="favourites-empty secondary" data-i18n="favourites.empty">Star a classroom to pin
+          it here.</p>
       </div>
 
       <div class="section-header">
-        <h3 class="section-header-title"><i class="hgi-stroke hgi-calendar-03 section-header-title-icon" aria-hidden="true"></i><span data-i18n="available.title">Available Classrooms</span></h3>
+        <h3 class="section-header-title"><i class="hgi-stroke hgi-calendar-03 section-header-title-icon"
+            aria-hidden="true"></i><span data-i18n="available.title">Available Classrooms</span></h3>
       </div>
 
       <form id="available-classrooms-form" class="form" data-loading>
@@ -260,6 +263,8 @@
           <li data-i18n="changelog.item1"></li>
           <li data-i18n="changelog.item2"></li>
           <li data-i18n="changelog.item3"></li>
+          <li data-i18n="changelog.item4"></li>
+          <li data-i18n="changelog.item5"></li>
         </ul>
 
         <a href="https://github.com/SummaCristian/poliaule" target="_blank" class="hero-badge">
@@ -299,20 +304,16 @@
       <div class="search-overlay-header">
         <div class="search-bar-wrapper liquid-glass">
           <span class="material-symbols-outlined">search</span>
-          <input
-            type="text"
-            id="classroom-search-input"
-            class="search-input"
-            data-i18n-attr="placeholder:search.inputPlaceholder"
-            placeholder="e.g. 2.0.1, Trifoglio..."
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <button id="classroom-search-clear" class="search-clear-btn" type="button" tabindex="-1" aria-label="Clear search">
+          <input type="text" id="classroom-search-input" class="search-input"
+            data-i18n-attr="placeholder:search.inputPlaceholder" placeholder="e.g. 2.0.1, Trifoglio..."
+            autocomplete="off" spellcheck="false" />
+          <button id="classroom-search-clear" class="search-clear-btn" type="button" tabindex="-1"
+            aria-label="Clear search">
             <span class="material-symbols-outlined">close</span>
           </button>
         </div>
-        <button id="search-overlay-close" class="search-overlay-close liquid-glass" type="button" aria-label="Close search">
+        <button id="search-overlay-close" class="search-overlay-close liquid-glass" type="button"
+          aria-label="Close search">
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>

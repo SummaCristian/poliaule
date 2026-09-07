@@ -175,5 +175,7 @@
   "footer.versionInfo": "Versione 2.0.0-beta5",
   "changelog.item1": "Ridisegnata la schermata di ricerca",
   "changelog.item2": "Aggiunta la ricerca per lezione o esame",
-  "changelog.item3": "Aggiunte scorciatoie da tastiera"
+  "changelog.item3": "Aggiunte scorciatoie da tastiera",
+  "changelog.item4": "Aggiunto un nuovo modo per spostarsi tra gli edifici all'interno della lista dei risultati delle aule disponibili: basta toccare la pillola con il nome dell'edificio per vedere tutti gli edifici",
+  "changelog.item5": "Ridisegnata la sezione dei selettori di query: ora vivono in una sezione sticky su mobile, e nella loro area dedicata su desktop. Su mobile, tocca uno qualsiasi dei pulsanti per espanderlo e rivelare il suo selettore."
 }
