@@ -85,6 +85,12 @@ async function boot(container) {
     logoPosition: 'bottom-left',
   });
 
+  // Desktop trackpad: a two-finger swipe should pan the map, not zoom it.
+  // Wheel zoom is kept only for the pinch gesture, which the browser reports
+  // as a ctrl-wheel event.
+  map.scrollZoom.disable();
+  el.addEventListener('wheel', e => onWheel(e, el), { passive: false });
+
   map.addControl(new mapboxgl.NavigationControl({ showZoom: false, showCompass: true }), 'top-right');
   map.addControl(new mapboxgl.GeolocateControl({
     positionOptions: { enableHighAccuracy: true },
@@ -115,6 +121,25 @@ async function boot(container) {
 
   // Keep the GL canvas glued to the panel through rotations / dynamic toolbars.
   new ResizeObserver(() => { if (map) map.resize(); }).observe(el);
+}
+
+function onWheel(e, el) {
+  if (!map) return;
+  e.preventDefault(); // stop page scroll / trackpad back-swipe navigation
+
+  // deltaMode 1 = lines (Firefox), 2 = pages — normalise to pixels.
+  const scale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? el.clientHeight : 1;
+
+  if (e.ctrlKey) {
+    // Trackpad pinch (or ctrl+wheel) → zoom around the cursor.
+    const rect = el.getBoundingClientRect();
+    const around = map.unproject([e.clientX - rect.left, e.clientY - rect.top]);
+    map.easeTo({ zoom: map.getZoom() - e.deltaY * scale * 0.01, around, duration: 0 });
+    return;
+  }
+
+  // Two-finger swipe → pan the map, following the fingers on both axes.
+  map.panBy([e.deltaX * scale, e.deltaY * scale], { duration: 0 });
 }
 
 let clampingBounds = false;
