@@ -21,7 +21,10 @@ const CONTAINER_ID = 'search-classrooms-container';
 // others (Cremona, Lecco, Mantova) are a pan away and always keep their marker.
 const INITIAL_CENTER = [9.195, 45.488];
 const INITIAL_ZOOM = 11.3;
-// A loose leash around Lombardy so a stray fling can't lose the map.
+// A loose leash around Lombardy so a stray fling can't lose the map. Applied as
+// a soft post-move clamp rather than the constructor's `maxBounds` — the latter
+// silently caps the map's pitch (and blocks flyTo/setPitch from raising it), so
+// with it set the 3D tilt never engages. See panBackInBounds().
 const MAX_BOUNDS = [[8.3, 44.5], [11.6, 46.8]];
 // Below this zoom we're "looking at the region" → show campuses, not buildings.
 const CAMPUS_ZOOM = 12.3;
@@ -75,10 +78,10 @@ async function boot(container) {
     zoom: INITIAL_ZOOM,
     minZoom: 8.5,
     maxZoom: 18,
-    maxBounds: MAX_BOUNDS,
     pitch: 0,
-    pitchWithRotate: false,
-    touchPitch: false,
+    maxPitch: 70,
+    pitchWithRotate: true,
+    touchPitch: true,
     logoPosition: 'bottom-left',
   });
 
@@ -100,11 +103,31 @@ async function boot(container) {
 
   // Zoom back out past a campus → return to the campus overview.
   map.on('zoomend', () => {
-    if (mode === 'buildings' && map.getZoom() < CAMPUS_ZOOM) showCampusMarkers(mapboxgl);
+    if (mode === 'buildings' && map.getZoom() < CAMPUS_ZOOM) {
+      showCampusMarkers(mapboxgl);
+      if (map.getPitch() > 0) map.easeTo({ pitch: 0, duration: reduceMotion.matches ? 0 : 600 });
+    }
   });
+
+  // Soft geographic leash: after any move, if the centre has drifted outside
+  // Lombardy, ease it back. Doesn't touch pitch, unlike constructor maxBounds.
+  map.on('moveend', panBackInBounds);
 
   // Keep the GL canvas glued to the panel through rotations / dynamic toolbars.
   new ResizeObserver(() => { if (map) map.resize(); }).observe(el);
+}
+
+let clampingBounds = false;
+function panBackInBounds() {
+  if (!map || clampingBounds) return;
+  const [[w, s], [e, n]] = MAX_BOUNDS;
+  const c = map.getCenter();
+  const lng = Math.min(e, Math.max(w, c.lng));
+  const lat = Math.min(n, Math.max(s, c.lat));
+  if (lng === c.lng && lat === c.lat) return;
+  clampingBounds = true;
+  map.easeTo({ center: [lng, lat], duration: reduceMotion.matches ? 0 : 300 });
+  map.once('moveend', () => { clampingBounds = false; });
 }
 
 function loadMapboxGl() {
@@ -178,7 +201,7 @@ function showCampusMarkers(mapboxgl) {
     el.addEventListener('click', () => {
       haptics.trigger(defaultPatterns.light);
       showBuildingMarkers(mapboxgl, campus);
-      map.flyTo(flyOpts({ center: [long, lat], zoom: CAMPUS_FLY_ZOOM }));
+      map.flyTo(flyOpts({ center: [long, lat], zoom: CAMPUS_FLY_ZOOM, pitch: 55 }));
     });
 
     markers.push(
